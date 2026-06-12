@@ -2,6 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '../config/api';
 import { extractError } from '../config/apiError';
 import { useParams, useNavigate } from 'react-router-dom';
+import {
+  motion,
+  AnimatePresence,
+  useScroll,
+  useTransform,
+  useInView,
+} from 'framer-motion';
+import { useRef } from 'react';
 
 /* ─────────────────────────────────────────────────────────────
    AMENITY ICONS
@@ -64,7 +72,6 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 const DAY_NAMES   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
 function toYMD(date) {
-  // Returns "YYYY-MM-DD" in LOCAL time (avoids UTC offset issues)
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
@@ -72,7 +79,6 @@ function toYMD(date) {
 }
 
 function parseYMD(str) {
-  // Parses "YYYY-MM-DD" as local date
   const [y, m, d] = str.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
@@ -102,39 +108,71 @@ function getDaysInMonth(year, month) {
 }
 
 function getFirstDayOfWeek(year, month) {
-  return new Date(year, month, 1).getDay(); // 0 = Sunday
+  return new Date(year, month, 1).getDay();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANIMATION VARIANTS
+───────────────────────────────────────────────────────────── */
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.35 } },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+
+const bentoVariants = {
+  hidden: { opacity: 0, scale: 0.97 },
+  visible: (i) => ({
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.5, delay: i * 0.07, ease: [0.22, 1, 0.36, 1] },
+  }),
+};
+
+/* ─────────────────────────────────────────────────────────────
+   SCROLL-TRIGGERED SECTION WRAPPER
+───────────────────────────────────────────────────────────── */
+function RevealSection({ children, className = '', delay = 0 }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-60px 0px' });
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 28 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────
    CALENDAR PICKER COMPONENT
-   Matches Airbnb's full-screen sheet design:
-   - "X nights / N nights / Select checkout" header
-   - Month name rows + day-of-week grid
-   - Range highlight between selected dates
-   - Strikethrough original + discounted total
-   - Save / Clear dates buttons
 ───────────────────────────────────────────────────────────── */
 function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Hover state for range preview
   const [hoverDate, setHoverDate] = useState(null);
-
-  // Internal selection state (strings or null)
   const [selIn,  setSelIn]  = useState(checkIn  || null);
   const [selOut, setSelOut] = useState(checkOut || null);
-
-  // Which selection step are we on?
-  // 'in' = picking check-in, 'out' = picking check-out
   const [step, setStep] = useState(checkIn && !checkOut ? 'out' : 'in');
 
-  // Start calendar at current month or check-in month
   const initDate = selIn ? parseYMD(selIn) : today;
   const [viewYear,  setViewYear]  = useState(initDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(initDate.getMonth());
 
-  // Build array of {year, month} for rendering — show 12 months from now
   const months = [];
   let y = today.getFullYear(), m = today.getMonth();
   for (let i = 0; i < 12; i++) {
@@ -145,22 +183,19 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
 
   const handleDayClick = useCallback((dateStr) => {
     const clicked = parseYMD(dateStr);
-    if (clicked < today) return; // past — ignore
-
+    if (clicked < today) return;
     if (step === 'in') {
       setSelIn(dateStr);
       setSelOut(null);
       setStep('out');
     } else {
-      // step === 'out'
       if (selIn && clicked <= parseYMD(selIn)) {
-        // Clicked before/same as check-in → restart
         setSelIn(dateStr);
         setSelOut(null);
         setStep('out');
       } else {
         setSelOut(dateStr);
-        setStep('in'); // done
+        setStep('in');
       }
     }
   }, [step, selIn, today]);
@@ -177,12 +212,10 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
     onClose();
   };
 
-  // Computed summary
   const nights = selIn && selOut ? nightsBetween(parseYMD(selIn), parseYMD(selOut)) : 0;
   const total  = nights && pricePerNight ? nights * pricePerNight : 0;
-  const originalTotal = total ? Math.round(total * 1.18) : 0; // fake original for strikethrough
+  const originalTotal = total ? Math.round(total * 1.18) : 0;
 
-  // Header text (mirrors Airbnb exactly)
   let headerTitle, headerSub;
   if (!selIn) {
     headerTitle = 'Select check-in date';
@@ -197,11 +230,9 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
     headerSub   = `${inFmt} – ${outFmt}`;
   }
 
-  // Range check helpers
   const inDate  = selIn  ? parseYMD(selIn)  : null;
   const outDate = selOut ? parseYMD(selOut) : null;
   const hDate   = hoverDate ? parseYMD(hoverDate) : null;
-  // Preview end: if we have selIn but no selOut, use hover
   const rangeEnd = outDate || (step === 'out' && hDate && inDate && hDate > inDate ? hDate : null);
 
   function getDayState(dateStr) {
@@ -211,13 +242,18 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
     const isEnd   = outDate && isSameDay(d, outDate);
     const inRange = inDate && rangeEnd && isBetween(d, inDate, rangeEnd);
     const isHoverEnd = step === 'out' && hDate && inDate && isSameDay(d, hDate) && hDate > inDate;
-
     return { isPast, isStart, isEnd, inRange, isHoverEnd };
   }
 
   return (
-    <div className="fixed inset-0 z-[300] bg-white flex flex-col">
-      {/* ── Header ── */}
+    <motion.div
+      className="fixed inset-0 z-[300] bg-white flex flex-col"
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 40 }}
+      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {/* Header */}
       <div className="px-4 pt-5 pb-3 shrink-0">
         <div className="flex items-center justify-between mb-4">
           <button
@@ -229,51 +265,48 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <button
-            onClick={handleClear}
-            className="text-sm font-semibold underline text-gray-700 hover:text-gray-900"
-          >
+          <button onClick={handleClear} className="text-sm font-semibold underline text-gray-700 hover:text-gray-900">
             Clear dates
           </button>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">{headerTitle}</h2>
+        <motion.h2
+          key={headerTitle}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="text-2xl font-bold text-gray-900"
+        >
+          {headerTitle}
+        </motion.h2>
         <p className="text-sm text-gray-500 mt-0.5">{headerSub}</p>
       </div>
 
-      {/* ── Day-of-week header (sticky) ── */}
+      {/* Day-of-week header */}
       <div className="grid grid-cols-7 text-center text-xs font-semibold text-gray-500 border-b border-gray-100 px-2 py-2 shrink-0">
         {DAY_NAMES.map(d => <div key={d}>{d}</div>)}
       </div>
 
-      {/* ── Scrollable months ── */}
+      {/* Scrollable months */}
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {months.map(({ year, month }) => {
           const daysInMonth  = getDaysInMonth(year, month);
-          const firstDayOfWk = getFirstDayOfWeek(year, month); // 0=Sun
+          const firstDayOfWk = getFirstDayOfWeek(year, month);
           const cells = [];
-          // Leading empty cells
           for (let i = 0; i < firstDayOfWk; i++) cells.push(null);
           for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
 
           return (
             <div key={`${year}-${month}`} className="mb-6">
-              {/* Month label */}
               <div className="text-base font-bold text-gray-900 py-3 px-2">
                 {MONTH_NAMES[month]} {year}
               </div>
-              {/* Days grid */}
               <div className="grid grid-cols-7">
                 {cells.map((date, idx) => {
                   if (!date) return <div key={`empty-${idx}`} />;
-
                   const dateStr = toYMD(date);
                   const { isPast, isStart, isEnd, inRange, isHoverEnd } = getDayState(dateStr);
-
-                  // Visual state
                   const isSelected = isStart || isEnd;
                   const isRangeEnd = isEnd || isHoverEnd;
-
-                  // Range bg pill — covers half cells at edges
                   const rangeLeftHalf  = isRangeEnd && !isStart && (inRange || isEnd);
                   const rangeRightHalf = isStart && (outDate || (step === 'out' && rangeEnd));
 
@@ -285,24 +318,14 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
                       onMouseEnter={() => !isPast && step === 'out' && inDate && setHoverDate(dateStr)}
                       onMouseLeave={() => setHoverDate(null)}
                     >
-                      {/* Range background band (full cell) */}
-                      {inRange && (
-                        <div className="absolute inset-y-2 inset-x-0 bg-gray-100" />
-                      )}
-                      {/* Half-pill at range start (right half only) */}
-                      {rangeRightHalf && (
-                        <div className="absolute inset-y-2 right-0 left-1/2 bg-gray-100" />
-                      )}
-                      {/* Half-pill at range end (left half only) */}
-                      {rangeLeftHalf && (
-                        <div className="absolute inset-y-2 left-0 right-1/2 bg-gray-100" />
-                      )}
-
-                      {/* Day circle button */}
-                      <button
+                      {inRange && <div className="absolute inset-y-2 inset-x-0 bg-gray-100" />}
+                      {rangeRightHalf && <div className="absolute inset-y-2 right-0 left-1/2 bg-gray-100" />}
+                      {rangeLeftHalf  && <div className="absolute inset-y-2 left-0 right-1/2 bg-gray-100" />}
+                      <motion.button
                         type="button"
                         disabled={isPast}
                         onClick={() => !isPast && handleDayClick(dateStr)}
+                        whileTap={!isPast ? { scale: 0.88 } : {}}
                         className={`
                           relative z-10 w-10 h-10 flex items-center justify-center rounded-full
                           text-sm font-medium transition-colors select-none
@@ -313,7 +336,7 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
                         `}
                       >
                         {date.getDate()}
-                      </button>
+                      </motion.button>
                     </div>
                   );
                 })}
@@ -323,39 +346,31 @@ function CalendarPicker({ checkIn, checkOut, onSave, onClose, pricePerNight }) {
         })}
       </div>
 
-      {/* ── Footer ── */}
+      {/* Footer */}
       <div className="shrink-0 border-t border-gray-200 px-4 py-4 flex items-center justify-between bg-white">
-        {/* Price summary */}
         <div className="text-sm">
           {total > 0 ? (
             <>
-              <span className="line-through text-gray-400 mr-1.5">
-                ₹{originalTotal.toLocaleString('en-IN')}
-              </span>
-              <span className="font-bold text-gray-900">
-                ₹{total.toLocaleString('en-IN')}
-              </span>
+              <span className="line-through text-gray-400 mr-1.5">₹{originalTotal.toLocaleString('en-IN')}</span>
+              <span className="font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</span>
               <span className="text-gray-500 ml-1">for {nights} night{nights !== 1 ? 's' : ''}</span>
             </>
           ) : (
             <span className="text-gray-500">Add dates for prices</span>
           )}
         </div>
-
-        {/* Save */}
-        <button
+        <motion.button
           onClick={handleSave}
           disabled={!selIn || !selOut}
+          whileTap={selIn && selOut ? { scale: 0.95 } : {}}
           className={`px-6 py-3 rounded-xl text-sm font-bold transition ${
-            selIn && selOut
-              ? 'bg-gray-900 text-white hover:bg-black'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            selIn && selOut ? 'bg-gray-900 text-white hover:bg-black' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >
           Save
-        </button>
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -371,43 +386,129 @@ function StarIcon({ className = 'w-4 h-4' }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   BOOKING FORM (shared logic for desktop widget + mobile sheet)
+   ROOM TYPE PICKER — inline expand, no absolute dropdown
+   Works inside overflow-hidden/overflow-y-auto containers
+───────────────────────────────────────────────────────────── */
+function RoomTypePicker({ rooms, selectedRoomId, setSelectedRoomId }) {
+  const [open, setOpen] = useState(false);
+  const selected = rooms.find(r => String(r.id) === String(selectedRoomId)) || rooms[0];
+
+  return (
+    <div className="border-b border-gray-300">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full p-3 text-left hover:bg-gray-50 transition flex items-center justify-between"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-extrabold tracking-wider uppercase text-gray-900">Room Type</div>
+          <div className="mt-1 text-sm font-medium text-gray-900 truncate pr-2">
+            {selected ? `${selected.type} — ₹${Math.round(selected.basePrice).toLocaleString('en-IN')}` : 'Select room'}
+          </div>
+        </div>
+        <motion.svg
+          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+          strokeWidth={2.5} stroke="currentColor"
+          className="w-4 h-4 shrink-0 text-gray-500 ml-2"
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </motion.svg>
+      </button>
+
+      {/* Inline expanded options — push content down, no clipping issues */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="room-options"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden border-t border-gray-100"
+          >
+            {rooms.map((room, i) => {
+              const isSelected = String(room.id) === String(selectedRoomId);
+              return (
+                <motion.button
+                  key={room.id}
+                  type="button"
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.16 }}
+                  onClick={() => { setSelectedRoomId(room.id); setOpen(false); }}
+                  className={`w-full text-left px-4 py-3 flex items-center justify-between transition
+                    ${isSelected ? 'bg-gray-900 text-white' : 'bg-white hover:bg-gray-50 text-gray-900'}
+                    ${i > 0 ? 'border-t border-gray-100' : ''}
+                  `}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Check indicator */}
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition
+                      ${isSelected ? 'bg-white border-white' : 'border-gray-300'}`}
+                    >
+                      {isSelected && (
+                        <div className="w-2 h-2 rounded-full bg-gray-900" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold truncate">{room.type}</div>
+                      <div className={`text-xs mt-0.5 ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>
+                        {room.description || 'Standard room'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <div className="font-bold text-sm">₹{Math.round(room.basePrice).toLocaleString('en-IN')}</div>
+                    <div className={`text-xs ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>/night</div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BOOKING FORM
 ───────────────────────────────────────────────────────────── */
 function BookingForm({
   rooms, checkInDate, checkOutDate, selectedRoomId, roomsCount,
   setCheckInDate, setCheckOutDate, setSelectedRoomId, setRoomsCount,
   bookingError, isReserving, onReserve, pricePerNight,
   nightCount, totalBeforeTax, serviceFee,
-  openCalendar,        // () => void — opens the calendar sheet
-  compact = false,     // true = inside mobile sheet (slightly different spacing)
+  openCalendar,
+  compact = false,
 }) {
   return (
     <>
-      {bookingError && (
-        <div className={`${compact ? 'mb-4' : 'mb-4'} p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-medium`}>
-          {bookingError}
-        </div>
-      )}
-
-      {/* Date + room + rooms grid */}
-      <div className="border border-gray-400 rounded-xl overflow-hidden mb-4">
-        {/* Dates row — clicking opens calendar */}
-        <div className="flex border-b border-gray-300">
-          <button
-            type="button"
-            onClick={openCalendar}
-            className="flex-1 p-3 border-r border-gray-300 text-left hover:bg-gray-50 transition"
+      <AnimatePresence>
+        {bookingError && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -8, height: 0 }}
+            className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-medium overflow-hidden"
           >
+            {bookingError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="border border-gray-400 rounded-xl overflow-hidden mb-4">
+        <div className="flex border-b border-gray-300">
+          <button type="button" onClick={openCalendar} className="flex-1 p-3 border-r border-gray-300 text-left hover:bg-gray-50 transition">
             <div className="text-[10px] font-extrabold tracking-wider uppercase text-gray-900">Check-in</div>
             <div className={`mt-1 text-sm font-medium ${checkInDate ? 'text-gray-900' : 'text-gray-400'}`}>
               {checkInDate ? formatDisplayDate(checkInDate) : 'Add date'}
             </div>
           </button>
-          <button
-            type="button"
-            onClick={openCalendar}
-            className="flex-1 p-3 text-left hover:bg-gray-50 transition"
-          >
+          <button type="button" onClick={openCalendar} className="flex-1 p-3 text-left hover:bg-gray-50 transition">
             <div className="text-[10px] font-extrabold tracking-wider uppercase text-gray-900">Check-out</div>
             <div className={`mt-1 text-sm font-medium ${checkOutDate ? 'text-gray-900' : 'text-gray-400'}`}>
               {checkOutDate ? formatDisplayDate(checkOutDate) : 'Add date'}
@@ -415,75 +516,69 @@ function BookingForm({
           </button>
         </div>
 
-        {/* Room type */}
-        <div className="p-3 border-b border-gray-300">
-          <label className="block text-[10px] font-extrabold tracking-wider uppercase text-gray-900">Room Type</label>
-          <select
-            className="w-full text-sm outline-none mt-1 bg-transparent font-medium cursor-pointer"
-            value={selectedRoomId}
-            onChange={(e) => setSelectedRoomId(e.target.value)}
-          >
-            {rooms.map(room => (
-              <option key={room.id} value={room.id}>
-                {room.type} — ₹{Math.round(room.basePrice).toLocaleString('en-IN')}
-              </option>
-            ))}
-          </select>
-        </div>
+        <RoomTypePicker rooms={rooms} selectedRoomId={selectedRoomId} setSelectedRoomId={setSelectedRoomId} />
 
-        {/* Rooms count */}
         <div className="p-3 flex justify-between items-center">
           <div>
             <label className="block text-[10px] font-extrabold tracking-wider uppercase text-gray-900">Rooms</label>
             <div className="text-sm mt-0.5 font-medium">{roomsCount} room{roomsCount > 1 ? 's' : ''}</div>
           </div>
           <div className="flex items-center gap-3">
-            <button
+            <motion.button
               type="button"
               onClick={() => setRoomsCount(Math.max(1, roomsCount - 1))}
+              whileTap={{ scale: 0.88 }}
               className="w-7 h-7 rounded-full border border-gray-400 flex items-center justify-center text-lg hover:border-gray-900 transition"
-            >−</button>
+            >−</motion.button>
             <span className="font-semibold w-4 text-center">{roomsCount}</span>
-            <button
+            <motion.button
               type="button"
               onClick={() => setRoomsCount(roomsCount + 1)}
+              whileTap={{ scale: 0.88 }}
               className="w-7 h-7 rounded-full border border-gray-400 flex items-center justify-center text-lg hover:border-gray-900 transition"
-            >+</button>
+            >+</motion.button>
           </div>
         </div>
       </div>
 
-      {/* Reserve button */}
-      <button
+      <motion.button
         onClick={onReserve}
         disabled={isReserving}
+        whileHover={!isReserving ? { scale: 1.015 } : {}}
+        whileTap={!isReserving ? { scale: 0.97 } : {}}
         className="w-full bg-gradient-to-r from-[#FF385C] to-[#E61E4D] text-white font-semibold text-base py-3.5 rounded-xl hover:opacity-90 transition mt-1 disabled:opacity-60"
       >
         {isReserving ? 'Processing…' : 'Reserve'}
-      </button>
+      </motion.button>
       <p className="text-center text-sm text-gray-500 mt-3">You won't be charged yet</p>
 
-      {/* Price breakdown */}
-      {totalBeforeTax > 0 && (
-        <div className="mt-5 flex flex-col gap-2 text-sm text-gray-700">
-          <hr className="border-gray-200 mb-1" />
-          <div className="flex justify-between">
-            <span className="underline">
-              ₹{pricePerNight.toLocaleString('en-IN')} × {nightCount} night{nightCount > 1 ? 's' : ''} × {roomsCount} room{roomsCount > 1 ? 's' : ''}
-            </span>
-            <span>₹{totalBeforeTax.toLocaleString('en-IN')}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="underline">Service fee</span>
-            <span>₹{serviceFee.toLocaleString('en-IN')}</span>
-          </div>
-          <hr className="border-gray-200 my-1" />
-          <div className="flex justify-between font-bold text-gray-900">
-            <span>Total before taxes</span>
-            <span>₹{(totalBeforeTax + serviceFee).toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {totalBeforeTax > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-5 flex flex-col gap-2 text-sm text-gray-700 overflow-hidden"
+          >
+            <hr className="border-gray-200 mb-1" />
+            <div className="flex justify-between">
+              <span className="underline">
+                ₹{pricePerNight.toLocaleString('en-IN')} × {nightCount} night{nightCount > 1 ? 's' : ''} × {roomsCount} room{roomsCount > 1 ? 's' : ''}
+              </span>
+              <span>₹{totalBeforeTax.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="underline">Service fee</span>
+              <span>₹{serviceFee.toLocaleString('en-IN')}</span>
+            </div>
+            <hr className="border-gray-200 my-1" />
+            <div className="flex justify-between font-bold text-gray-900">
+              <span>Total before taxes</span>
+              <span>₹{(totalBeforeTax + serviceFee).toLocaleString('en-IN')}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -495,21 +590,23 @@ export default function HotelDetails() {
   const { id }   = useParams();
   const navigate = useNavigate();
 
-  const [hotelInfo,       setHotelInfo]      = useState(null);
-  const [isLoading,       setIsLoading]      = useState(true);
+  const [hotelInfo,        setHotelInfo]       = useState(null);
+  const [isLoading,        setIsLoading]       = useState(true);
 
-  const [checkInDate,     setCheckInDate]    = useState('');
-  const [checkOutDate,    setCheckOutDate]   = useState('');
-  const [roomsCount,      setRoomsCount]     = useState(1);
-  const [selectedRoomId,  setSelectedRoomId] = useState('');
-  const [bookingError,    setBookingError]   = useState('');
-  const [isReserving,     setIsReserving]    = useState(false);
+  const [checkInDate,      setCheckInDate]     = useState('');
+  const [checkOutDate,     setCheckOutDate]    = useState('');
+  const [roomsCount,       setRoomsCount]      = useState(1);
+  const [selectedRoomId,   setSelectedRoomId]  = useState('');
+  const [bookingError,     setBookingError]    = useState('');
+  const [isReserving,      setIsReserving]     = useState(false);
 
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isCalendarOpen,    setIsCalendarOpen]    = useState(false);
   const [isLiked,           setIsLiked]           = useState(false);
-  const [showAllPhotos,     setShowAllPhotos]      = useState(false);
+  const [showAllPhotos,     setShowAllPhotos]     = useState(false);
   const [activePhotoIndex,  setActivePhotoIndex]  = useState(0);
+  const [galleryDirection,  setGalleryDirection]  = useState(1);
+  const bentoRef = useRef(null);
 
   /* ── Fetch hotel ── */
   useEffect(() => {
@@ -567,21 +664,42 @@ export default function HotelDetails() {
     }
   };
 
-  /* ── Calendar save callback ── */
   const handleCalendarSave = useCallback((inDate, outDate) => {
     setCheckInDate(inDate);
     setCheckOutDate(outDate);
     setBookingError('');
   }, []);
 
+  /* ── Photo navigation helpers ── */
+  const goPrev = (e) => {
+    if (e) e.stopPropagation();
+    setGalleryDirection(-1);
+    setActivePhotoIndex(i => (i - 1 + (hotelInfo ? 5 : 1)) % (hotelInfo ? 5 : 1));
+  };
+  const goNext = (e) => {
+    if (e) e.stopPropagation();
+    setGalleryDirection(1);
+    setActivePhotoIndex(i => (i + 1) % (hotelInfo ? 5 : 1));
+  };
+
   /* ── Loading / not found ── */
   if (isLoading) return (
     <div className="h-screen w-full flex justify-center items-center">
-      <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#FF385C] border-t-transparent" />
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+        className="rounded-full h-10 w-10 border-2 border-[#FF385C] border-t-transparent"
+      />
     </div>
   );
   if (!hotelInfo) return (
-    <div className="pt-40 text-center font-semibold text-gray-900">Hotel not found!</div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="pt-40 text-center font-semibold text-gray-900"
+    >
+      Hotel not found!
+    </motion.div>
   );
 
   const hotel = hotelInfo.hotel ?? hotelInfo;
@@ -591,7 +709,14 @@ export default function HotelDetails() {
     const fallback  = FALLBACK_IMAGES[index % FALLBACK_IMAGES.length];
     const candidate = hotel?.photos?.[index];
     if (!candidate || typeof candidate !== 'string' || candidate.trim() === '') return fallback;
-    return candidate.includes('unsplash.com/photos/') ? fallback : candidate;
+    // Let <img onError> catch broken URLs; just return the candidate
+    return candidate;
+  };
+
+  // Fallback handler for all img tags — cycles to next fallback image
+  const handleImgError = (e, index) => {
+    e.target.onerror = null; // prevent infinite loop
+    e.target.src = FALLBACK_IMAGES[index % FALLBACK_IMAGES.length];
   };
 
   const allPhotos = Array.from({ length: 5 }, (_, i) => getImg(i));
@@ -608,10 +733,6 @@ export default function HotelDetails() {
   const totalBeforeTax = nightCount ? pricePerNight * nightCount * roomsCount : null;
   const serviceFee     = totalBeforeTax ? Math.round(totalBeforeTax * 0.12) : null;
 
-  const prevPhoto = (e) => { e.stopPropagation(); setActivePhotoIndex(i => (i - 1 + allPhotos.length) % allPhotos.length); };
-  const nextPhoto = (e) => { e.stopPropagation(); setActivePhotoIndex(i => (i + 1) % allPhotos.length); };
-
-  /* ── Shared booking form props ── */
   const bookingFormProps = {
     rooms, checkInDate, checkOutDate, selectedRoomId, roomsCount,
     setCheckInDate, setCheckOutDate, setSelectedRoomId, setRoomsCount,
@@ -620,16 +741,66 @@ export default function HotelDetails() {
     openCalendar: () => setIsCalendarOpen(true),
   };
 
-  /* ── Date label for mobile bar ── */
   const dateLabel = checkInDate && checkOutDate
     ? `${checkInDate.slice(5).replace('-', '/')} – ${checkOutDate.slice(5).replace('-', '/')}`
     : 'Select dates';
 
+  // Gallery slide variants
+  const slideVariants = {
+    enter: (dir) => ({ x: dir > 0 ? '100%' : '-100%', opacity: 0 }),
+    center: { x: 0, opacity: 1, transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] } },
+    exit: (dir) => ({ x: dir > 0 ? '-100%' : '100%', opacity: 0, transition: { duration: 0.28 } }),
+  };
+
   return (
     <div className="relative pb-28 lg:pb-10">
 
-      {/* ── MOBILE FLOATING NAV ── */}
-      <div className="md:hidden fixed top-0 left-0 w-full p-4 flex justify-between items-center z-50 pointer-events-none">
+      {/* ── DESKTOP STICKY DETAIL BAR (always visible) ── */}
+      <div className="hidden md:flex fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
+        <div className="max-w-[1280px] mx-auto px-10 lg:px-20 w-full flex items-center justify-between h-16 gap-8">
+          {/* Hotel name */}
+          <h2 className="font-semibold text-gray-900 text-base truncate shrink-0 max-w-[280px]">{hotel?.name}</h2>
+
+          {/* Section jump links */}
+          <div className="flex items-center gap-6 text-sm font-medium text-gray-600 overflow-x-auto">
+            {['Photos', 'Amenities', 'Rooms', 'Reviews'].map(s => (
+              <button
+                key={s}
+                onClick={() => {
+                  const el = document.getElementById(`section-${s.toLowerCase()}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="hover:text-gray-900 transition whitespace-nowrap pb-0.5 border-b-2 border-transparent hover:border-gray-900"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {/* Mini reserve CTA */}
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="text-sm text-gray-700">
+              <span className="font-bold text-gray-900">₹{pricePerNight.toLocaleString('en-IN')}</span>
+              <span className="text-gray-500"> / night</span>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={() => {
+                document.getElementById('booking-widget')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+              className="bg-gradient-to-r from-[#FF385C] to-[#E61E4D] text-white px-5 py-2 rounded-xl text-sm font-bold hover:opacity-90 transition"
+            >
+              Reserve
+            </motion.button>
+          </div>
+        </div>
+      </div>
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="md:hidden fixed top-0 left-0 w-full p-4 flex justify-between items-center z-50 pointer-events-none"
+      >
         <button
           onClick={() => navigate(-1)}
           className="pointer-events-auto bg-white/95 backdrop-blur shadow-md p-2.5 rounded-full hover:bg-gray-100 transition"
@@ -644,53 +815,77 @@ export default function HotelDetails() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
           </button>
-          <button
+          <motion.button
             onClick={() => setIsLiked(!isLiked)}
+            whileTap={{ scale: 1.35 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 15 }}
             className="bg-white/95 backdrop-blur shadow-md p-2.5 rounded-full hover:bg-gray-100 transition"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={isLiked ? '#FF385C' : 'none'} stroke={isLiked ? '#FF385C' : 'currentColor'} strokeWidth={1.5} className="w-4 h-4">
+            <motion.svg
+              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+              fill={isLiked ? '#FF385C' : 'none'}
+              stroke={isLiked ? '#FF385C' : 'currentColor'}
+              strokeWidth={1.5} className="w-4 h-4"
+              animate={isLiked ? { scale: [1, 1.4, 1] } : { scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
               <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-            </svg>
-          </button>
+            </motion.svg>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* ── MOBILE PHOTO CAROUSEL ── */}
+      {/* ── MOBILE PHOTO CAROUSEL (slide transition) ── */}
       <div className="md:hidden relative w-full h-[300px] bg-gray-100 overflow-hidden">
-        <img
-          src={allPhotos[activePhotoIndex]}
-          alt={hotel.name}
-          className="w-full h-full object-cover"
-          onError={(e) => { e.target.src = FALLBACK_IMAGES[0]; }}
-        />
-        <button onClick={prevPhoto} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow">
+        <AnimatePresence initial={false} custom={galleryDirection} mode="popLayout">
+          <motion.img
+            key={activePhotoIndex}
+            src={allPhotos[activePhotoIndex]}
+            alt={hotel.name}
+            custom={galleryDirection}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => { e.target.src = FALLBACK_IMAGES[0]; }}
+          />
+        </AnimatePresence>
+        <button onClick={goPrev} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow z-10">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
         </button>
-        <button onClick={nextPhoto} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow">
+        <button onClick={goNext} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow z-10">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
           {allPhotos.map((_, i) => (
-            <button
+            <motion.button
               key={i}
-              onClick={() => setActivePhotoIndex(i)}
-              className={`rounded-full transition-all ${i === activePhotoIndex ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/60'}`}
+              onClick={() => { setGalleryDirection(i > activePhotoIndex ? 1 : -1); setActivePhotoIndex(i); }}
+              animate={{ width: i === activePhotoIndex ? 20 : 6, opacity: i === activePhotoIndex ? 1 : 0.6 }}
+              transition={{ duration: 0.2 }}
+              className="h-1.5 rounded-full bg-white"
             />
           ))}
         </div>
-        <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+        <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full z-10">
           {activePhotoIndex + 1} / {allPhotos.length}
         </div>
       </div>
 
-      <div className="max-w-[1280px] mx-auto md:px-10 lg:px-20 md:pt-32">
+      <div className="max-w-[1280px] mx-auto md:px-10 lg:px-20 pt-6 md:pt-20">
 
         {/* ── DESKTOP HEADER ── */}
-        <div className="hidden md:flex justify-between items-center mb-5 px-0">
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="hidden md:flex justify-between items-center mb-5 px-0"
+        >
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -709,34 +904,80 @@ export default function HotelDetails() {
               </svg>
               Share
             </button>
-            <button
+            <motion.button
               onClick={() => setIsLiked(!isLiked)}
+              whileTap={{ scale: 1.25 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 12 }}
               className="flex items-center gap-2 hover:bg-gray-100 px-3 py-2 rounded-xl transition underline"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={isLiked ? '#FF385C' : 'none'} stroke={isLiked ? '#FF385C' : 'currentColor'} strokeWidth={1.5} className="w-4 h-4">
+              <motion.svg
+                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                fill={isLiked ? '#FF385C' : 'none'}
+                stroke={isLiked ? '#FF385C' : 'currentColor'}
+                strokeWidth={1.5} className="w-4 h-4"
+                animate={isLiked ? { scale: [1, 1.5, 1] } : { scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
                 <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-              </svg>
+              </motion.svg>
               {isLiked ? 'Saved' : 'Save'}
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
-        {/* ── DESKTOP PHOTO BENTO GRID ── */}
-        <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[460px] rounded-2xl overflow-hidden mb-10 relative">
-          <div className="col-span-2 row-span-2">
-            <img src={allPhotos[0]} alt="Main" className="w-full h-full object-cover hover:brightness-95 transition cursor-pointer" onClick={() => setShowAllPhotos(true)} />
-          </div>
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="col-span-1 row-span-1 overflow-hidden">
-              <img src={allPhotos[i]} alt={`Photo ${i}`} className="w-full h-full object-cover hover:brightness-95 transition cursor-pointer" onClick={() => { setActivePhotoIndex(i); setShowAllPhotos(true); }} />
-            </div>
+        {/* ── DESKTOP PHOTO BENTO GRID (staggered entrance) ── */}
+        <div ref={bentoRef} id="section-photos" className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[460px] rounded-2xl overflow-hidden mb-10 relative">
+          <motion.div
+            custom={0}
+            variants={bentoVariants}
+            initial="hidden"
+            animate="visible"
+            className="col-span-2 row-span-2 overflow-hidden"
+          >
+            <motion.img
+              src={allPhotos[0]}
+              alt="Main"
+              className="w-full h-full object-cover cursor-pointer"
+              whileHover={{ scale: 1.03, brightness: 0.95 }}
+              transition={{ duration: 0.4 }}
+              onClick={() => setShowAllPhotos(true)}
+              onError={(e) => handleImgError(e, 0)}
+            />
+          </motion.div>
+
+          {/* Side photos */}
+          {[1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              custom={i}
+              variants={bentoVariants}
+              initial="hidden"
+              animate="visible"
+              className="col-span-1 row-span-1 overflow-hidden"
+            >
+              <motion.img
+                src={allPhotos[i]}
+                alt={`Photo ${i + 1}`}
+                className="w-full h-full object-cover cursor-pointer"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.35 }}
+                onClick={() => { setActivePhotoIndex(i); setShowAllPhotos(true); }}
+                onError={(e) => handleImgError(e, i)}
+              />
+            </motion.div>
           ))}
-          <button
+
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.45, duration: 0.3 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => setShowAllPhotos(true)}
             className="absolute bottom-4 right-4 bg-white border border-gray-300 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50 transition shadow-sm"
           >
             Show all photos
-          </button>
+          </motion.button>
         </div>
 
         {/* ── MAIN CONTENT ── */}
@@ -746,12 +987,12 @@ export default function HotelDetails() {
           <div className="flex-1 lg:max-w-[60%]">
 
             {/* Mobile title */}
-            <div className="md:hidden mb-4">
+            <RevealSection className="md:hidden mb-4">
               <h1 className="text-2xl font-semibold text-gray-900 leading-tight">{hotel.name}</h1>
-            </div>
+            </RevealSection>
 
             {/* Subtitle + rating */}
-            <div className="mb-5">
+            <RevealSection className="mb-5">
               <h2 className="text-xl md:text-[22px] font-semibold text-gray-900 mb-1">
                 Entire place in {hotel.city}, India
               </h2>
@@ -764,14 +1005,19 @@ export default function HotelDetails() {
                 <span className="font-normal text-gray-500 mx-1">·</span>
                 <span className="text-gray-700 font-normal">{hotel.city}, India</span>
               </div>
-            </div>
+            </RevealSection>
+
             <hr className="border-gray-200" />
 
             {/* Host card */}
-            <div className="py-6 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FF385C] to-[#E61E4D] flex items-center justify-center text-white font-bold text-lg shrink-0">
+            <RevealSection className="py-6 flex items-center gap-4">
+              <motion.div
+                whileHover={{ scale: 1.06 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 18 }}
+                className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FF385C] to-[#E61E4D] flex items-center justify-center text-white font-bold text-lg shrink-0"
+              >
                 {hotel.name?.charAt(0) || 'H'}
-              </div>
+              </motion.div>
               <div>
                 <div className="font-semibold text-gray-900">Hosted by {hotel.name?.split(' ')[0] || 'Host'}</div>
                 <div className="text-sm text-gray-500">Superhost · 3 years hosting</div>
@@ -780,57 +1026,79 @@ export default function HotelDetails() {
                 <StarIcon className="w-3.5 h-3.5" />
                 {rating} · Superhost
               </div>
-            </div>
+            </RevealSection>
+
             <hr className="border-gray-200" />
 
             {/* Feature highlights */}
-            <div className="py-6 flex flex-col gap-4">
-              {[
-                { icon: '🏠', title: 'Entire place',     desc: "You'll have the place to yourself." },
-                { icon: '✨', title: 'Enhanced Clean',   desc: 'Committed to a higher standard of clean.' },
-                { icon: '🔑', title: 'Self check-in',    desc: 'Check yourself in with the key lockbox.' },
-              ].map(f => (
-                <div key={f.title} className="flex items-start gap-4">
-                  <span className="text-2xl mt-0.5">{f.icon}</span>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">{f.title}</div>
-                    <div className="text-sm text-gray-500 mt-0.5">{f.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <RevealSection className="py-6">
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: '-40px' }}
+                className="flex flex-col gap-4"
+              >
+                {[
+                  { icon: '🏠', title: 'Entire place',   desc: "You'll have the place to yourself." },
+                  { icon: '✨', title: 'Enhanced Clean', desc: 'Committed to a higher standard of clean.' },
+                  { icon: '🔑', title: 'Self check-in',  desc: 'Check yourself in with the key lockbox.' },
+                ].map(f => (
+                  <motion.div key={f.title} variants={fadeUp} className="flex items-start gap-4">
+                    <span className="text-2xl mt-0.5">{f.icon}</span>
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">{f.title}</div>
+                      <div className="text-sm text-gray-500 mt-0.5">{f.desc}</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </RevealSection>
+
             <hr className="border-gray-200" />
 
             {/* Description */}
-            <div className="py-6">
+            <RevealSection className="py-6">
               <p className="text-gray-700 leading-relaxed text-base">
                 Bring the whole family to this great place with lots of room for fun.
                 Beautifully located in the heart of {hotel.city}, this property offers
                 unmatched convenience and luxury. Every detail has been thoughtfully
                 curated for a memorable stay.
               </p>
-            </div>
+            </RevealSection>
+
             <hr className="border-gray-200" />
 
             {/* Amenities */}
             {hotel.amenities?.length > 0 && (
               <>
-                <div className="py-6">
+                <div id="section-amenities" />
+                <RevealSection className="py-6">
                   <h3 className="text-xl font-semibold mb-5">What this place offers</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: '-40px' }}
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6"
+                  >
                     {hotel.amenities.slice(0, 10).map((amenity, i) => (
-                      <div key={i} className="flex items-center gap-4 text-gray-700 text-base">
+                      <motion.div key={i} variants={fadeUp} className="flex items-center gap-4 text-gray-700 text-base">
                         <span className="text-gray-900">{getAmenityIcon(amenity)}</span>
                         {amenity}
-                      </div>
+                      </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                   {hotel.amenities.length > 10 && (
-                    <button className="mt-6 border border-gray-900 rounded-xl px-6 py-3 text-sm font-semibold hover:bg-gray-50 transition">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="mt-6 border border-gray-900 rounded-xl px-6 py-3 text-sm font-semibold hover:bg-gray-50 transition"
+                    >
                       Show all {hotel.amenities.length} amenities
-                    </button>
+                    </motion.button>
                   )}
-                </div>
+                </RevealSection>
                 <hr className="border-gray-200" />
               </>
             )}
@@ -838,51 +1106,90 @@ export default function HotelDetails() {
             {/* Available rooms */}
             {rooms.length > 0 && (
               <>
-                <div className="py-6">
+                <div id="section-rooms" />
+                <RevealSection className="py-6">
                   <h3 className="text-xl font-semibold mb-5">Available rooms</h3>
-                  <div className="flex flex-col gap-3">
-                    {rooms.map(room => (
-                      <div
-                        key={room.id}
-                        onClick={() => setSelectedRoomId(room.id)}
-                        className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition ${
-                          String(selectedRoomId) === String(room.id)
-                            ? 'border-gray-900 bg-gray-50'
-                            : 'border-gray-200 hover:border-gray-400'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-semibold text-gray-900">{room.type}</div>
-                          <div className="text-sm text-gray-500 mt-0.5">{room.description || 'Standard room'}</div>
-                        </div>
-                        <div className="text-right shrink-0 ml-4">
-                          <div className="font-bold text-gray-900">₹{Math.round(room.basePrice).toLocaleString('en-IN')}</div>
-                          <div className="text-xs text-gray-500">/ night</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: '-40px' }}
+                    className="flex flex-col gap-3"
+                  >
+                    {rooms.map(room => {
+                      const isSel = String(selectedRoomId) === String(room.id);
+                      return (
+                        <motion.div
+                          key={room.id}
+                          variants={fadeUp}
+                          onClick={() => setSelectedRoomId(room.id)}
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.99 }}
+                          animate={{
+                            borderColor: isSel ? '#111' : '#e5e7eb',
+                            backgroundColor: isSel ? '#f9fafb' : '#fff',
+                          }}
+                          transition={{ duration: 0.18 }}
+                          className="flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Selection indicator */}
+                            <motion.div
+                              animate={{
+                                backgroundColor: isSel ? '#111' : '#fff',
+                                borderColor: isSel ? '#111' : '#d1d5db',
+                                scale: isSel ? 1 : 0.85,
+                              }}
+                              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                              className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0"
+                            >
+                              {isSel && (
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                </svg>
+                              )}
+                            </motion.div>
+                            <div>
+                              <div className="font-semibold text-gray-900">{room.type}</div>
+                              <div className="text-sm text-gray-500 mt-0.5">{room.description || 'Standard room'}</div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-4">
+                            <div className="font-bold text-gray-900">₹{Math.round(room.basePrice).toLocaleString('en-IN')}</div>
+                            <div className="text-xs text-gray-500">/ night</div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                </RevealSection>
                 <hr className="border-gray-200" />
               </>
             )}
 
             {/* Reviews */}
-            <div className="py-6">
+            <div id="section-reviews" />
+            <RevealSection className="py-6">
               <div className="flex items-center gap-2 mb-6">
                 <StarIcon />
                 <span className="text-xl font-semibold">{rating}</span>
                 <span className="text-gray-500">·</span>
                 <span className="text-xl font-semibold">14 reviews</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: '-40px' }}
+                className="grid grid-cols-1 sm:grid-cols-2 gap-6"
+              >
                 {[
-                  { name: 'Priya S.',   date: 'May 2025',      review: 'Absolutely beautiful property! The amenities were top-notch and the location was perfect.' },
-                  { name: 'Rahul M.',   date: 'April 2025',    review: 'Had a wonderful stay. Very clean, well-maintained and the host was extremely responsive.' },
+                  { name: 'Priya S.',  date: 'May 2025',      review: 'Absolutely beautiful property! The amenities were top-notch and the location was perfect.' },
+                  { name: 'Rahul M.',  date: 'April 2025',    review: 'Had a wonderful stay. Very clean, well-maintained and the host was extremely responsive.' },
                   { name: 'Ananya K.', date: 'March 2025',    review: "Loved the interiors and the overall vibe. Would definitely book again for my next trip!" },
                   { name: 'Vikram P.', date: 'February 2025', review: 'Great value for money. The beds were comfortable and the kitchen was fully stocked.' },
                 ].map(r => (
-                  <div key={r.name}>
+                  <motion.div key={r.name} variants={fadeUp}>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-700 text-sm shrink-0">
                         {r.name.charAt(0)}
@@ -893,16 +1200,21 @@ export default function HotelDetails() {
                       </div>
                     </div>
                     <p className="text-sm text-gray-700 leading-relaxed">{r.review}</p>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
-            </div>
+              </motion.div>
+            </RevealSection>
           </div>
 
           {/* ── DESKTOP BOOKING WIDGET ── */}
-          <div className="hidden lg:block w-full max-w-[36%] relative shrink-0">
+          <motion.div
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.55, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="hidden lg:block w-full max-w-[36%] relative shrink-0"
+          >
             <div className="sticky top-32">
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-6 pb-7">
+              <div id="booking-widget" className="bg-white border border-gray-200 rounded-2xl shadow-xl p-6 pb-7">
                 <div className="flex items-baseline gap-1 mb-1">
                   {pricePerNight > 0
                     ? <><span className="text-[22px] font-bold text-gray-900">₹{pricePerNight.toLocaleString('en-IN')}</span><span className="text-gray-500 text-sm"> / night</span></>
@@ -921,12 +1233,17 @@ export default function HotelDetails() {
                 <button className="text-sm text-gray-500 underline hover:text-gray-700">Report this listing</button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
 
       {/* ── MOBILE BOTTOM BAR ── */}
-      <div className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-5 py-4 z-50 flex justify-between items-center">
+      <motion.div
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-5 py-4 z-50 flex justify-between items-center"
+      >
         <div>
           <div>
             <span className="font-bold text-[17px] text-gray-900">
@@ -941,103 +1258,165 @@ export default function HotelDetails() {
             {dateLabel}
           </button>
         </div>
-        <button
+        <motion.button
           onClick={() => setIsMobileSheetOpen(true)}
+          whileTap={{ scale: 0.95 }}
           className="bg-gradient-to-r from-[#FF385C] to-[#E61E4D] text-white px-8 py-3 rounded-xl font-bold text-[15px] hover:opacity-90 transition"
         >
           Reserve
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
       {/* ── MOBILE BOOKING SHEET ── */}
-      {isMobileSheetOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-[200] flex justify-center items-end"
-          onClick={() => setIsMobileSheetOpen(false)}
-        >
-          <div
-            className="bg-white w-full rounded-t-3xl overflow-hidden flex flex-col"
-            style={{ maxHeight: '90vh' }}
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {isMobileSheetOpen && (
+          <>
+            <motion.div
+              key="sheet-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="lg:hidden fixed inset-0 bg-black/50 z-[200]"
+              onClick={() => setIsMobileSheetOpen(false)}
+            />
+            <motion.div
+              key="sheet-panel"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+              className="lg:hidden fixed bottom-0 left-0 w-full bg-white rounded-t-3xl overflow-hidden flex flex-col z-[201]"
+              style={{ maxHeight: '90vh' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-200 shrink-0">
+                <button onClick={() => setIsMobileSheetOpen(false)} className="p-2 bg-gray-100 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="flex items-baseline gap-1">
+                  <span className="font-bold text-lg text-gray-900">₹{pricePerNight.toLocaleString('en-IN')}</span>
+                  <span className="text-sm text-gray-500">/ night</span>
+                </div>
+                <div className="flex items-center gap-1 text-sm">
+                  <StarIcon className="w-3.5 h-3.5" />
+                  <span className="font-semibold">{rating}</span>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-5 pb-4">
+                <BookingForm {...bookingFormProps} compact />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── CALENDAR PICKER ── */}
+      <AnimatePresence>
+        {isCalendarOpen && (
+          <CalendarPicker
+            key="calendar"
+            checkIn={checkInDate}
+            checkOut={checkOutDate}
+            pricePerNight={pricePerNight}
+            onSave={handleCalendarSave}
+            onClose={() => setIsCalendarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── FULLSCREEN PHOTO GALLERY ── */}
+      <AnimatePresence>
+        {showAllPhotos && (
+          <motion.div
+            key="gallery"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 bg-black z-[300] flex flex-col"
           >
-            {/* Sheet header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-200 shrink-0">
-              <button onClick={() => setIsMobileSheetOpen(false)} className="p-2 bg-gray-100 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+            {/* Gallery header */}
+            <motion.div
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="flex items-center justify-between p-4 text-white shrink-0"
+            >
+              <button onClick={() => setShowAllPhotos(false)} className="p-2 hover:bg-white/10 rounded-full transition">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <div className="flex items-baseline gap-1">
-                <span className="font-bold text-lg text-gray-900">₹{pricePerNight.toLocaleString('en-IN')}</span>
-                <span className="text-sm text-gray-500">/ night</span>
-              </div>
-              <div className="flex items-center gap-1 text-sm">
-                <StarIcon className="w-3.5 h-3.5" />
-                <span className="font-semibold">{rating}</span>
-              </div>
-            </div>
+              <span className="font-semibold">{activePhotoIndex + 1} / {allPhotos.length}</span>
+              <div className="w-9" />
+            </motion.div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-5 pb-4">
-              <BookingForm {...bookingFormProps} compact />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── CALENDAR PICKER (full screen, on top of everything) ── */}
-      {isCalendarOpen && (
-        <CalendarPicker
-          checkIn={checkInDate}
-          checkOut={checkOutDate}
-          pricePerNight={pricePerNight}
-          onSave={handleCalendarSave}
-          onClose={() => setIsCalendarOpen(false)}
-        />
-      )}
-
-      {/* ── FULLSCREEN PHOTO GALLERY ── */}
-      {showAllPhotos && (
-        <div className="fixed inset-0 bg-black z-[300] flex flex-col">
-          <div className="flex items-center justify-between p-4 text-white shrink-0">
-            <button onClick={() => setShowAllPhotos(false)} className="p-2 hover:bg-white/10 rounded-full transition">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <span className="font-semibold">{activePhotoIndex + 1} / {allPhotos.length}</span>
-            <div className="w-9" />
-          </div>
-          <div className="flex-1 flex items-center justify-center relative px-4">
-            <button onClick={prevPhoto} className="absolute left-4 bg-white/20 hover:bg-white/30 p-3 rounded-full text-white transition z-10">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <img
-              src={allPhotos[activePhotoIndex]}
-              alt="Gallery"
-              className="max-h-full max-w-full object-contain rounded-lg"
-              onError={(e) => { e.target.src = FALLBACK_IMAGES[0]; }}
-            />
-            <button onClick={nextPhoto} className="absolute right-4 bg-white/20 hover:bg-white/30 p-3 rounded-full text-white transition z-10">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex gap-2 p-4 overflow-x-auto justify-center shrink-0">
-            {allPhotos.map((photo, i) => (
+            {/* Main gallery image with slide transition */}
+            <div className="flex-1 flex items-center justify-center relative px-4 overflow-hidden">
               <button
-                key={i}
-                onClick={() => setActivePhotoIndex(i)}
-                className={`shrink-0 rounded-lg overflow-hidden border-2 transition ${i === activePhotoIndex ? 'border-white' : 'border-transparent opacity-60'}`}
+                onClick={goPrev}
+                className="absolute left-4 bg-white/20 hover:bg-white/30 p-3 rounded-full text-white transition z-10"
               >
-                <img src={photo} alt="" className="w-16 h-12 object-cover" onError={(e) => { e.target.src = FALLBACK_IMAGES[0]; }} />
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
               </button>
-            ))}
-          </div>
-        </div>
-      )}
+
+              <AnimatePresence initial={false} custom={galleryDirection} mode="popLayout">
+                <motion.img
+                  key={activePhotoIndex}
+                  src={allPhotos[activePhotoIndex]}
+                  alt="Gallery"
+                  custom={galleryDirection}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="max-h-full max-w-full object-contain rounded-lg"
+                  onError={(e) => { e.target.src = FALLBACK_IMAGES[0]; }}
+                />
+              </AnimatePresence>
+
+              <button
+                onClick={goNext}
+                className="absolute right-4 bg-white/20 hover:bg-white/30 p-3 rounded-full text-white transition z-10"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Thumbnail strip — slides in from bottom */}
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.15, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="flex gap-2 p-4 overflow-x-auto justify-center shrink-0"
+            >
+              {allPhotos.map((photo, i) => (
+                <motion.button
+                  key={i}
+                  onClick={() => { setGalleryDirection(i > activePhotoIndex ? 1 : -1); setActivePhotoIndex(i); }}
+                  animate={{
+                    opacity: i === activePhotoIndex ? 1 : 0.5,
+                    scale:   i === activePhotoIndex ? 1.08 : 1,
+                  }}
+                  transition={{ duration: 0.2 }}
+                  className={`shrink-0 rounded-lg overflow-hidden border-2 transition ${
+                    i === activePhotoIndex ? 'border-white' : 'border-transparent'
+                  }`}
+                >
+                  <img src={photo} alt="" className="w-16 h-12 object-cover" onError={(e) => { e.target.src = FALLBACK_IMAGES[0]; }} />
+                </motion.button>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

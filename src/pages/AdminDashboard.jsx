@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiUrl } from '../config/api';
+import { extractError } from '../config/apiError';
 import { useNavigate } from 'react-router-dom';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -220,7 +221,7 @@ export default function AdminDashboard() {
         fetchMyHotels();
       } else {
         const json = await res.json();
-        setRoomError(json.error?.message || 'Failed to add room.');
+        setRoomError(extractError(json, 'Failed to add room.'));
       }
     } catch {
       setRoomError('Network error. Please try again.');

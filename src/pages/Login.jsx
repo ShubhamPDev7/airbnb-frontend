@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiUrl } from '../config/api';
+import { extractError } from '../config/apiError';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 
@@ -46,7 +47,7 @@ export default function Login() {
         }
         
       } else {
-        setError(responseData.error?.message || 'Invalid email or password.');
+        setError(extractError(responseData, 'Invalid email or password.'));
       }
     } catch {
       setError('Could not connect to the server.');
@@ -85,7 +86,7 @@ export default function Login() {
         }
         
       } else {
-        setError(responseData.error?.message || 'Google login failed.');
+        setError(extractError(responseData, 'Google login failed.'));
       }
     } catch (err) {
       setError('Network error during Google Login.');

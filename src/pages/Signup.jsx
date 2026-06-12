@@ -61,6 +61,7 @@ export default function Signup() {
       if (response.ok) {
         const payload = data.data || data;
         localStorage.setItem('token', payload.accessToken);
+        localStorage.setItem('user', JSON.stringify(payload.user));
         navigate('/');
       } else {
         setError(data.error?.message || 'Google signup failed.');

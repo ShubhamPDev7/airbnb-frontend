@@ -32,6 +32,8 @@ function Navbar() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+  const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const userInitial = storedUser?.name?.charAt(0)?.toUpperCase() || '?';
 
   const [searchCity, setSearchCity] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -71,6 +73,7 @@ function Navbar() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setIsLoggedIn(false);
     setIsProfileMenuOpen(false);
     navigate('/login');
@@ -293,7 +296,7 @@ function Navbar() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                   </svg>
                   <div className="bg-gray-600 text-white rounded-full w-8 h-8 flex items-center justify-center overflow-hidden font-bold text-sm">
-                    {isLoggedIn ? 'A' : (
+                    {isLoggedIn ? userInitial : (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 mt-1">
                         <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
                       </svg>
@@ -305,6 +308,10 @@ function Navbar() {
                   <div className="absolute top-14 right-0 bg-white border border-gray-200 shadow-xl rounded-2xl w-64 py-2 text-sm text-gray-700 flex flex-col z-[120] overflow-hidden">
                     {isLoggedIn ? (
                       <>
+                        <div className="px-4 py-3 border-b border-gray-200">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{storedUser?.name || 'My Account'}</p>
+                          <p className="text-xs text-gray-500 truncate">{storedUser?.email || ''}</p>
+                        </div>
                         <MenuItem onClick={() => menuNav('/my-trips')} bold>My Trips</MenuItem>
                         <MenuItem onClick={() => menuNav('/host/create')}>Host a property</MenuItem>
                         <MenuItem onClick={() => menuNav('/admin/dashboard')}>Manage Listings</MenuItem>
@@ -331,7 +338,7 @@ function Navbar() {
                 className="flex items-center border border-gray-300 rounded-full p-1 gap-2 bg-white hover:shadow-md transition"
               >
                 <div className="bg-gray-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
-                  {isLoggedIn ? 'A' : (
+                  {isLoggedIn ? userInitial : (
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mt-0.5">
                       <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
                     </svg>
@@ -345,6 +352,10 @@ function Navbar() {
                   <div className="absolute top-12 right-0 bg-white border border-gray-200 shadow-xl rounded-2xl w-56 py-2 text-sm text-gray-700 flex flex-col z-[120] overflow-hidden">
                     {isLoggedIn ? (
                       <>
+                        <div className="px-4 py-3 border-b border-gray-200">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{storedUser?.name || 'My Account'}</p>
+                          <p className="text-xs text-gray-500 truncate">{storedUser?.email || ''}</p>
+                        </div>
                         <MenuItem onClick={() => menuNav('/my-trips')} bold>My Trips</MenuItem>
                         <MenuItem onClick={() => menuNav('/host/create')}>Host a property</MenuItem>
                         <MenuItem onClick={() => menuNav('/admin/dashboard')}>Manage Listings</MenuItem>

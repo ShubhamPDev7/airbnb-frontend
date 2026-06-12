@@ -1,11 +1,28 @@
 diff a/src/pages/Signup.jsx b/src/pages/Signup.jsx	(rejected hunks)
-@@ -58,10 +59,11 @@ export default function Signup() {
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate, Link } from 'react-router-dom';
+ import { GoogleLogin } from '@react-oauth/google';
+ 
+@@ -34,7 +35,7 @@ export default function Signup() {
+       if (response.ok) {
+         navigate('/verify-email', { state: { email: formData.email } });
+       } else {
+-        setError(data.error?.message || 'Signup failed. Please try again.');
++        setError(extractError(data, 'Signup failed. Please try again.'));
+       }
+     } catch {
+       setError('Could not connect to the server.');
+@@ -58,10 +59,12 @@ export default function Signup() {
        const data = await response.json();
        
        if (response.ok) {
 -        localStorage.setItem('token', data.accessToken || data.data?.accessToken);
 +        const payload = data.data || data;
 +        localStorage.setItem('token', payload.accessToken);
++        localStorage.setItem('user', JSON.stringify(payload.user));
          navigate('/');
        } else {
 -        setError(data.error?.message || 'Google signup failed.');

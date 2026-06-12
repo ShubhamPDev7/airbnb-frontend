@@ -37,6 +37,7 @@ export default function Login() {
         
         // 2. Save the token
         localStorage.setItem('token', payload.accessToken);
+        localStorage.setItem('user', JSON.stringify(payload.user));
         
         // 3. Check if the profile is complete
         const user = payload.user;
@@ -76,6 +77,7 @@ export default function Login() {
         
         // 2. Save the token
         localStorage.setItem('token', payload.accessToken);
+        localStorage.setItem('user', JSON.stringify(payload.user));
         
         // 3. Check if the profile is complete
         const user = payload.user;

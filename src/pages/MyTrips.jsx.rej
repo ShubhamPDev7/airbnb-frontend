@@ -1,0 +1,26 @@
+diff a/src/pages/MyTrips.jsx b/src/pages/MyTrips.jsx	(rejected hunks)
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate } from 'react-router-dom';
+ 
+ // ─── SVG Icons ───────────────────────────────────────────────────────────────
+@@ -252,7 +253,7 @@ export default function MyTrips() {
+       if (response.ok && jsonResponse.data) {
+         setBookings(jsonResponse.data.sort((a, b) => b.id - a.id));
+       } else {
+-        setError(jsonResponse.error?.message || 'Failed to load trips.');
++        setError(extractError(jsonResponse, 'Failed to load trips.'));
+       }
+     } catch {
+       setError('Could not connect to server.');
+@@ -280,7 +281,7 @@ export default function MyTrips() {
+         fetchMyTrips(); 
+       } else {
+         const jsonResponse = await response.json();
+-        alert(jsonResponse.error?.message || 'Could not cancel booking.');
++        alert(extractError(jsonResponse, 'Could not cancel booking.'));
+       }
+     } catch { 
+       alert('Network error.'); 

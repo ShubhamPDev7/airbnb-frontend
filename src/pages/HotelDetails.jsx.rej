@@ -1,0 +1,17 @@
+diff a/src/pages/HotelDetails.jsx b/src/pages/HotelDetails.jsx	(rejected hunks)
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect, useCallback } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useParams, useNavigate } from 'react-router-dom';
+ 
+ /* ─────────────────────────────────────────────────────────────
+@@ -558,7 +559,7 @@ export default function HotelDetails() {
+       });
+       const data = await response.json();
+       if (response.ok) navigate(`/checkout/${data.data.id}`);
+-      else setBookingError(data.error?.message || 'Failed to initialize booking.');
++      else setBookingError(extractError(data, 'Failed to initialize booking.'));
+     } catch {
+       setBookingError('Network error. Please try again.');
+     } finally {

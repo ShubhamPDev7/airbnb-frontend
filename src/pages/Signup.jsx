@@ -64,7 +64,7 @@ export default function Signup() {
         localStorage.setItem('user', JSON.stringify(payload.user));
         navigate('/');
       } else {
-        setError(data.error?.message || 'Google signup failed.');
+        setError(extractError(data, 'Google signup failed.'));
       }
     } catch (err) {
       setError('Network error during Google Signup.');

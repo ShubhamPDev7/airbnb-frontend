@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -64,21 +65,26 @@ function addRecentlyViewed(hotelData) {
   localStorage.setItem(RV_KEY, JSON.stringify(next));
 }
 
-/* ── Image helper ── */
-// BUG FIX: previous logic tried to extract slug from 'unsplash.com/photos/' but then
-// prepended 'photo-' — which only works if the URL path segment already starts with 'photo-'.
-// Simplified: just return the URL directly if it's http(s), else fallback.
-function getCardImage(photos, seedId) {
+/* ── Image helper: multiple photos for the hover carousel ── */
+function getCardPhotos(photos, seedId) {
   const fallback = FALLBACKS[(seedId ?? 0) % FALLBACKS.length];
-  if (!photos || !Array.isArray(photos) || photos.length === 0) return fallback;
-  for (const p of photos) {
-    if (!p || typeof p !== 'string') continue;
-    const t = p.trim();
-    if (!t) continue;
-    if (t.toLowerCase().startsWith('http')) return t;
-  }
-  return fallback;
+  if (!photos || !Array.isArray(photos)) return [fallback];
+  const valid = photos
+    .filter((p) => typeof p === 'string' && p.trim().toLowerCase().startsWith('http'))
+    .map((p) => p.trim());
+  return valid.length > 0 ? valid.slice(0, 5) : [fallback];
 }
+
+/* ── Animation variants ── */
+const gridVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.06 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+};
 
 /* ── Price helpers ── */
 function computeBounds(hotelList) {
@@ -124,12 +130,15 @@ function HotelCard({ hotelData, wishlist, onWishlistToggle }) {
   const navigate  = useNavigate();
   const { hotel, price } = hotelData;
   const [imgError, setImgError] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+  const intervalRef = useRef(null);
 
   // BUG FIX: wishlist stores hotel.id (number/string), so check hotel.id not hotel?.id
   const isLiked = wishlist.includes(hotel.id);
-  const imgSrc  = imgError
-    ? FALLBACKS[(hotel.id ?? 0) % FALLBACKS.length]
-    : getCardImage(hotel.photos, hotel.id);
+  const photos  = imgError
+    ? [FALLBACKS[(hotel.id ?? 0) % FALLBACKS.length]]
+    : getCardPhotos(hotel.photos, hotel.id);
 
   // Deterministic pseudo-rating seeded by id
   const rating  = (4.5 + ((hotel.id ?? 0) % 5) / 10).toFixed(1);
@@ -145,33 +154,122 @@ function HotelCard({ hotelData, wishlist, onWishlistToggle }) {
     navigate(`/hotel/${hotel.id}`);
   };
 
+  // Auto-cycle through photos while hovered
+  const startCycle = () => {
+    if (photos.length <= 1) return;
+    setIsHovering(true);
+    intervalRef.current = setInterval(() => {
+      setActiveIdx((i) => (i + 1) % photos.length);
+    }, 1400);
+  };
+  const stopCycle = () => {
+    setIsHovering(false);
+    clearInterval(intervalRef.current);
+    setActiveIdx(0);
+  };
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
+  const goTo = (e, dir) => {
+    e.stopPropagation();
+    setActiveIdx((i) => (i + dir + photos.length) % photos.length);
+    // restart the auto-cycle timer so manual nav feels responsive
+    clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setActiveIdx((i) => (i + 1) % photos.length);
+    }, 1400);
+  };
+
   return (
-    <div className="flex flex-col gap-2 relative cursor-pointer group">
+    <motion.div
+      variants={cardVariants}
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="flex flex-col gap-2 relative cursor-pointer group"
+    >
       {/* Image */}
       <div
         onClick={handleClick}
+        onMouseEnter={startCycle}
+        onMouseLeave={stopCycle}
         className="aspect-square w-full relative overflow-hidden rounded-2xl bg-gray-100"
       >
-        <img
-          src={imgSrc}
-          onError={() => setImgError(true)}
-          alt={hotel.name}
-          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
-        <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-bold text-gray-900 shadow-sm">
+        <AnimatePresence initial={false} mode="popLayout">
+          <motion.img
+            key={activeIdx}
+            src={photos[activeIdx]}
+            onError={() => setImgError(true)}
+            alt={hotel.name}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+          />
+        </AnimatePresence>
+
+        <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-bold text-gray-900 shadow-sm z-10">
           Guest favourite
         </span>
+
+        {/* Carousel: prev/next click zones (only when multiple photos & hovered) */}
+        {photos.length > 1 && isHovering && (
+          <>
+            <button
+              onClick={(e) => goTo(e, -1)}
+              aria-label="Previous photo"
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 active:scale-95 transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3 text-gray-800">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => goTo(e, 1)}
+              aria-label="Next photo"
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 active:scale-95 transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3 text-gray-800">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          </>
+        )}
+
+        {/* Dot indicators */}
+        {photos.length > 1 && (
+          <div className="absolute bottom-2.5 left-0 right-0 flex justify-center gap-1 z-10">
+            {photos.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === activeIdx ? 'w-1.5 bg-white' : 'w-1.5 bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Wishlist heart */}
-      <button
+      <motion.button
         onClick={(e) => { e.stopPropagation(); onWishlistToggle(hotel.id); }}
-        className="absolute top-3 right-3 z-10 p-1 hover:scale-110 active:scale-95 transition"
+        whileTap={{ scale: 0.7 }}
+        className="absolute top-3 right-3 z-10 p-1 hover:scale-110 transition"
         aria-label={isLiked ? 'Remove from wishlist' : 'Save to wishlist'}
       >
-        <HeartIcon filled={isLiked} />
-      </button>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={isLiked ? 'liked' : 'unliked'}
+            initial={{ scale: 0.6 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+            className="block"
+          >
+            <HeartIcon filled={isLiked} />
+          </motion.span>
+        </AnimatePresence>
+      </motion.button>
 
       {/* Info */}
       <div className="flex flex-col gap-0.5" onClick={handleClick}>
@@ -195,19 +293,23 @@ function HotelCard({ hotelData, wishlist, onWishlistToggle }) {
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 /* ── Card grid ── */
 function CardGrid({ children }) {
   return (
-    <div
+    <motion.div
+      variants={gridVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.15 }}
       className="grid gap-x-4 gap-y-7 md:gap-x-5 md:gap-y-10"
       style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))' }}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -371,19 +473,30 @@ function FiltersPanel({ isOpen, onClose, allHotels, priceRange, setPriceRange, s
   // (they did use h.price which is correct since price is at root of each item)
   const { min: globalMin, max: globalMax } = computeBounds(allHotels);
 
-  if (!isOpen) return null;
-
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 z-[150] backdrop-blur-sm" onClick={onClose} />
-      {/* Panel */}
-      <div
-        className="fixed z-[160] bottom-0 left-0 right-0 rounded-t-3xl
-          md:bottom-auto md:top-[160px] md:right-6 md:left-auto md:rounded-2xl md:w-[380px]
-          bg-white shadow-2xl flex flex-col overflow-hidden"
-        style={{ maxHeight: 'min(92vh, calc(100dvh - 180px))' }}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/40 z-[150] backdrop-blur-sm"
+            onClick={onClose}
+          />
+          {/* Panel */}
+          <motion.div
+            initial={{ y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            className="fixed z-[160] bottom-0 left-0 right-0 rounded-t-3xl
+              md:bottom-auto md:top-[160px] md:right-6 md:left-auto md:rounded-2xl md:w-[380px]
+              bg-white shadow-2xl flex flex-col overflow-hidden"
+            style={{ maxHeight: 'min(92vh, calc(100dvh - 180px))' }}
+          >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
           <h2 className="text-lg font-bold text-gray-900">Filters</h2>
@@ -440,12 +553,12 @@ function FiltersPanel({ isOpen, onClose, allHotels, priceRange, setPriceRange, s
             Show results
           </button>
         </div>
-      </div>
-    </>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
-
-/* ── City Section ── */
 function CitySection({ cityName, cityHotels, wishlist, onWishlistToggle }) {
   const INITIAL = 5;
   const [showAll, setShowAll] = useState(false);

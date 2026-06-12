@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { extractError } from '../config/apiError';
 import { useNavigate } from 'react-router-dom';
 
-// ─── SVG Icons ───────────────────────────────────────────────────────────────
+/* ── Icons ─────────────────────────────────────────────────── */
 function CalendarIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4">
@@ -11,15 +12,6 @@ function CalendarIcon() {
     </svg>
   );
 }
-
-function RupeeIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 8.25H9m6 3H9m3 6l-3-3h1.5a3 3 0 100-6M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
-
 function MapPinIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4">
@@ -28,7 +20,6 @@ function MapPinIcon() {
     </svg>
   );
 }
-
 function NightsIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4">
@@ -36,8 +27,15 @@ function NightsIcon() {
     </svg>
   );
 }
+function XIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
 
-// ─── Fallback images ──────────────────────────────────────────────────────────
+/* ── Constants ─────────────────────────────────────────────── */
 const FALLBACKS = [
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80",
   "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80",
@@ -64,7 +62,6 @@ const getThumbnail = (photos, seedId) => {
   return fallback;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (dateString) => {
   if (!dateString) return '—';
   return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -76,23 +73,33 @@ const getNights = (checkIn, checkOut) => {
   return diff > 0 ? diff : null;
 };
 
-// ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  CONFIRMED:        { label: 'Confirmed',        dot: 'bg-green-500',  pill: 'bg-green-50 text-green-700 ring-green-200' },
-  RESERVED:         { label: 'Reserved',         dot: 'bg-amber-500',  pill: 'bg-amber-50 text-amber-700 ring-amber-200' },
-  CANCELLED:        { label: 'Cancelled',        dot: 'bg-red-500',    pill: 'bg-red-50 text-red-600 ring-red-200' },
-  PAYMENTS_PENDING: { label: 'Payment Pending',  dot: 'bg-blue-500',   pill: 'bg-blue-50 text-blue-700 ring-blue-200' },
-  GUESTS_ADDED:     { label: 'Guests Added',     dot: 'bg-purple-500', pill: 'bg-purple-50 text-purple-700 ring-purple-200' },
+  CONFIRMED:        { label: 'Confirmed',       dot: 'bg-green-500',  pill: 'bg-green-50 text-green-700 ring-green-200' },
+  RESERVED:         { label: 'Reserved',        dot: 'bg-amber-500',  pill: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  CANCELLED:        { label: 'Cancelled',       dot: 'bg-red-500',    pill: 'bg-red-50 text-red-600 ring-red-200' },
+  PAYMENTS_PENDING: { label: 'Payment Pending', dot: 'bg-blue-500',   pill: 'bg-blue-50 text-blue-700 ring-blue-200' },
+  GUESTS_ADDED:     { label: 'Guests Added',    dot: 'bg-purple-500', pill: 'bg-purple-50 text-purple-700 ring-purple-200' },
 };
-
 const getStatusConfig = (status) =>
   STATUS_CONFIG[status] || { label: status || 'Pending', dot: 'bg-gray-400', pill: 'bg-gray-100 text-gray-600 ring-gray-200' };
 
-// ─── Skeleton loader card ─────────────────────────────────────────────────────
+/* ── Animation variants ─────────────────────────────────────── */
+const gridVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.07 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } },
+};
+
+/* ── Skeleton ── */
 function SkeletonCard() {
   return (
     <div className="rounded-2xl overflow-hidden animate-pulse">
-      <div className="h-52 bg-gray-200" />
+      <div className="h-52 bg-gray-200 rounded-2xl" />
       <div className="pt-3 space-y-2">
         <div className="h-4 bg-gray-200 rounded w-2/3" />
         <div className="h-3 bg-gray-100 rounded w-1/2" />
@@ -102,44 +109,51 @@ function SkeletonCard() {
   );
 }
 
-// ─── Trip Card ────────────────────────────────────────────────────────────────
+/* ── Trip Card ─────────────────────────────────────────────── */
 function TripCard({ booking, onCancel, isCanceling }) {
   const isPast = new Date(booking.checkOutDate) < new Date();
   const isCancelled = booking.bookingStatus === 'CANCELLED';
   const statusCfg = getStatusConfig(booking.bookingStatus);
   const nights = getNights(booking.checkInDate, booking.checkOutDate);
-
   const canCancel = !isPast && !isCancelled &&
     ['CONFIRMED', 'RESERVED', 'PAYMENTS_PENDING', 'GUESTS_ADDED'].includes(booking.bookingStatus);
 
   return (
-    <article
-      className={`group rounded-2xl overflow-hidden cursor-default transition-all duration-200 ${isCancelled ? 'opacity-60' : ''}`}
+    <motion.article
+      variants={cardVariants}
+      whileHover={!isCancelled ? { y: -4 } : {}}
+      transition={{ duration: 0.2 }}
+      className={`group rounded-2xl overflow-hidden cursor-default ${isCancelled ? 'opacity-60' : ''}`}
     >
-      {/* ── Image ── */}
+      {/* Image */}
       <div className="relative h-52 overflow-hidden rounded-2xl bg-gray-100">
-        <img
+        <motion.img
           src={getThumbnail(booking.hotel?.photos, booking.id)}
           onError={(e) => { e.target.onerror = null; e.target.src = FALLBACKS[(booking.id || 0) % FALLBACKS.length]; }}
           alt={booking.hotel?.name || 'Hotel'}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="w-full h-full object-cover"
+          whileHover={{ scale: 1.06 }}
+          transition={{ duration: 0.4 }}
         />
-
-        {/* Subtle dark vignette */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
-        {/* Status pill — top left */}
-        <div className={`absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset backdrop-blur-sm bg-white/80 ${statusCfg.pill}`}>
+        {/* Status pill */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.15, type: 'spring', stiffness: 400, damping: 20 }}
+          className={`absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset backdrop-blur-sm bg-white/80 ${statusCfg.pill}`}
+        >
           <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
           {statusCfg.label}
-        </div>
+        </motion.div>
 
-        {/* Booking ID — top right */}
+        {/* Booking ID */}
         <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[11px] font-mono tracking-wide">
           #{booking.id}
         </div>
 
-        {/* Nights badge — bottom right, only if active */}
+        {/* Nights badge */}
         {nights && !isCancelled && (
           <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm text-gray-800 px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm flex items-center gap-1">
             <NightsIcon />
@@ -148,9 +162,8 @@ function TripCard({ booking, onCancel, isCanceling }) {
         )}
       </div>
 
-      {/* ── Details ── */}
+      {/* Details */}
       <div className="pt-3 pb-1">
-        {/* Location + Hotel name */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="font-semibold text-gray-900 text-[15px] truncate leading-snug">
@@ -161,8 +174,6 @@ function TripCard({ booking, onCancel, isCanceling }) {
               {booking.hotel?.name || 'Hotel Booking'}
             </p>
           </div>
-
-          {/* Amount */}
           <div className="text-right shrink-0">
             <p className="text-gray-900 font-semibold text-[15px]">
               ₹{booking.amount?.toLocaleString('en-IN') || '0'}
@@ -171,7 +182,6 @@ function TripCard({ booking, onCancel, isCanceling }) {
           </div>
         </div>
 
-        {/* Dates */}
         <div className="mt-2 flex items-center gap-1.5 text-sm text-gray-500">
           <CalendarIcon />
           <span>
@@ -181,63 +191,66 @@ function TripCard({ booking, onCancel, isCanceling }) {
           </span>
         </div>
 
-        {/* Divider */}
         <hr className="my-2.5 border-gray-100" />
 
-        {/* Footer action */}
         <div className="flex items-center justify-between min-h-[28px]">
           {canCancel ? (
-            <button
+            <motion.button
               onClick={() => onCancel(booking.id)}
               disabled={isCanceling}
+              whileHover={{ x: 1 }}
+              whileTap={{ scale: 0.96 }}
               className="text-sm font-semibold text-gray-800 underline underline-offset-2 hover:text-gray-600 disabled:opacity-40 transition-colors"
             >
               {isCanceling ? 'Canceling…' : 'Cancel reservation'}
-            </button>
+            </motion.button>
           ) : (
             <span className="text-sm text-gray-400">
               {isCancelled ? 'Refund processed' : isPast ? 'Completed' : ''}
             </span>
           )}
-
-          {/* "Write a review" placeholder for past non-cancelled trips */}
           {isPast && !isCancelled && (
-            <button className="text-sm font-semibold text-[#FF385C] hover:text-[#E61E4D] transition-colors">
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.95 }}
+              className="text-sm font-semibold text-[#FF385C] hover:text-[#E61E4D] transition-colors"
+            >
               Rate stay
-            </button>
+            </motion.button>
           )}
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 }
 
-// ─── Filter tab button ─────────────────────────────────────────────────────────
+/* ── Filter tab ─────────────────────────────────────────────── */
 function FilterTab({ active, onClick, children }) {
   return (
-    <button
+    <motion.button
       onClick={onClick}
-      className={`px-4 py-2 rounded-full text-sm font-semibold border transition-all whitespace-nowrap ${
-        active
-          ? 'bg-gray-900 text-white border-gray-900'
-          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-600'
-      }`}
+      whileTap={{ scale: 0.95 }}
+      animate={{
+        backgroundColor: active ? '#111827' : '#ffffff',
+        color: active ? '#ffffff' : '#374151',
+        borderColor: active ? '#111827' : '#d1d5db',
+      }}
+      transition={{ duration: 0.18 }}
+      className="px-4 py-2 rounded-full text-sm font-semibold border whitespace-nowrap"
     >
       {children}
-    </button>
+    </motion.button>
   );
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+/* ── Main component ─────────────────────────────────────────── */
 export default function MyTrips() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [cancelingId, setCancelingId] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all' | 'upcoming' | 'past' | 'cancelled'
-  
-  // 🌟 NEW: State to control the cancellation modal
+  const [filter, setFilter] = useState('all');
   const [tripToCancel, setTripToCancel] = useState(null);
 
   useEffect(() => { fetchMyTrips(); }, []);
@@ -247,7 +260,7 @@ export default function MyTrips() {
     if (!token) { navigate('/login'); return; }
     try {
       const response = await fetch(apiUrl('/users/myBookings'), {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const jsonResponse = await response.json();
       if (response.ok && jsonResponse.data) {
@@ -262,12 +275,8 @@ export default function MyTrips() {
     }
   };
 
-  // 🌟 NEW: Opens the modal instead of browser alert
-  const openCancelModal = (bookingId) => {
-    setTripToCancel(bookingId);
-  };
+  const openCancelModal = (bookingId) => setTripToCancel(bookingId);
 
-  // 🌟 NEW: Actually executes the fetch request when "Yes" is clicked
   const confirmCancel = async () => {
     if (!tripToCancel) return;
     setCancelingId(tripToCancel);
@@ -275,44 +284,47 @@ export default function MyTrips() {
     try {
       const response = await fetch(apiUrl(`/bookings/${tripToCancel}/cancel`), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (response.ok) { 
-        fetchMyTrips(); 
+      if (response.ok) {
+        fetchMyTrips();
       } else {
         const jsonResponse = await response.json();
         alert(extractError(jsonResponse, 'Could not cancel booking.'));
       }
-    } catch { 
-      alert('Network error.'); 
-    } finally { 
-      setCancelingId(null); 
-      setTripToCancel(null); // Close the modal
+    } catch {
+      alert('Network error.');
+    } finally {
+      setCancelingId(null);
+      setTripToCancel(null);
     }
   };
 
-  // ── Filtering ──
   const filteredBookings = bookings.filter((b) => {
     const isPast = new Date(b.checkOutDate) < new Date();
     const isCancelled = b.bookingStatus === 'CANCELLED';
-    if (filter === 'upcoming') return !isPast && !isCancelled;
-    if (filter === 'past')     return isPast && !isCancelled;
+    if (filter === 'upcoming')  return !isPast && !isCancelled;
+    if (filter === 'past')      return isPast && !isCancelled;
     if (filter === 'cancelled') return isCancelled;
     return true;
   });
 
   const counts = {
-    all: bookings.length,
-    upcoming: bookings.filter(b => !new Date(b.checkOutDate) < new Date() && b.bookingStatus !== 'CANCELLED').length,
-    past: bookings.filter(b => new Date(b.checkOutDate) < new Date() && b.bookingStatus !== 'CANCELLED').length,
+    all:       bookings.length,
+    upcoming:  bookings.filter(b => !(new Date(b.checkOutDate) < new Date()) && b.bookingStatus !== 'CANCELLED').length,
+    past:      bookings.filter(b =>  new Date(b.checkOutDate) < new Date()  && b.bookingStatus !== 'CANCELLED').length,
     cancelled: bookings.filter(b => b.bookingStatus === 'CANCELLED').length,
   };
 
-  // ── Loading skeleton ──
+  /* ── Loading ── */
   if (isLoading) {
     return (
       <div className="pt-28 pb-20 px-5 sm:px-8 md:px-12 lg:px-20 max-w-[1280px] mx-auto min-h-screen">
-        <div className="h-8 w-40 bg-gray-200 rounded-lg animate-pulse mb-8" />
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="h-8 w-40 bg-gray-200 rounded-lg animate-pulse mb-8"
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
         </div>
@@ -320,129 +332,207 @@ export default function MyTrips() {
     );
   }
 
-  // ── Empty state ──
   const showEmpty = !error && bookings.length === 0;
 
   return (
     <div className="pt-28 pb-20 px-5 sm:px-8 md:px-12 lg:px-20 max-w-[1280px] mx-auto min-h-screen relative">
 
-      {/* ── Header ── */}
-      <div className="mb-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="mb-6"
+      >
         <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Trips</h1>
-      </div>
+      </motion.div>
 
-      {/* ── Error banner ── */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl text-sm font-medium border border-red-100 flex items-start gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-          </svg>
-          {error}
-        </div>
-      )}
+      {/* Error */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl text-sm font-medium border border-red-100 flex items-start gap-2 overflow-hidden"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ── Empty state ── */}
+      {/* Empty state */}
       {showEmpty ? (
-        <div className="flex flex-col items-center text-center py-24 max-w-sm mx-auto">
-          <div className="w-16 h-16 mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="flex flex-col items-center text-center py-24 max-w-sm mx-auto"
+        >
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ repeat: Infinity, duration: 2.8, ease: 'easeInOut' }}
+            className="w-16 h-16 mb-6 rounded-full bg-gray-100 flex items-center justify-center"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-gray-400">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
             </svg>
-          </div>
+          </motion.div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">No trips yet</h2>
           <p className="text-gray-500 text-sm leading-relaxed mb-6">
             When you book a stay, your trips will appear here. Ready to start exploring?
           </p>
-          <button
+          <motion.button
             onClick={() => navigate('/')}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             className="bg-[#FF385C] text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-[#E61E4D] transition-colors"
           >
             Explore stays
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       ) : (
         <>
-          {/* ── Filter tabs ── */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide mb-6">
-            <FilterTab active={filter === 'all'} onClick={() => setFilter('all')}>
-              All ({counts.all})
-            </FilterTab>
-            <FilterTab active={filter === 'upcoming'} onClick={() => setFilter('upcoming')}>
-              Upcoming
-            </FilterTab>
-            <FilterTab active={filter === 'past'} onClick={() => setFilter('past')}>
-              Past
-            </FilterTab>
-            {counts.cancelled > 0 && (
-              <FilterTab active={filter === 'cancelled'} onClick={() => setFilter('cancelled')}>
-                Cancelled
+          {/* Filter tabs */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.05 }}
+            className="flex gap-2 overflow-x-auto pb-1 mb-6"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {[
+              { key: 'all',       label: `All (${counts.all})` },
+              { key: 'upcoming',  label: 'Upcoming' },
+              { key: 'past',      label: 'Past' },
+              ...(counts.cancelled > 0 ? [{ key: 'cancelled', label: 'Cancelled' }] : []),
+            ].map(tab => (
+              <FilterTab key={tab.key} active={filter === tab.key} onClick={() => setFilter(tab.key)}>
+                {tab.label}
               </FilterTab>
-            )}
-          </div>
+            ))}
+          </motion.div>
 
-          {/* ── Grid ── */}
-          {filteredBookings.length === 0 ? (
-            <div className="py-16 text-center text-gray-500 text-sm">
-              No trips in this category.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-8">
-              {filteredBookings.map((booking) => (
-                <TripCard
-                  key={booking.id}
-                  booking={booking}
-                  onCancel={openCancelModal} // 🌟 Passed the new modal function
-                  isCanceling={cancelingId === booking.id}
-                />
-              ))}
-            </div>
-          )}
+          {/* Grid */}
+          <AnimatePresence mode="wait">
+            {filteredBookings.length === 0 ? (
+              <motion.div
+                key="empty-filter"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="py-16 text-center text-gray-500 text-sm"
+              >
+                No trips in this category.
+              </motion.div>
+            ) : (
+              <motion.div
+                key={filter}
+                variants={gridVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-8"
+              >
+                {filteredBookings.map((booking) => (
+                  <TripCard
+                    key={booking.id}
+                    booking={booking}
+                    onCancel={openCancelModal}
+                    isCanceling={cancelingId === booking.id}
+                  />
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>
       )}
 
-      {/* 🌟 CUSTOM CANCELLATION MODAL 🌟 */}
-      {tripToCancel && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-            
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Cancel Reservation</h3>
-              <button 
-                onClick={() => setTripToCancel(null)}
-                className="p-2 hover:bg-gray-100 rounded-full transition"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* ── Cancel Modal ── */}
+      <AnimatePresence>
+        {tripToCancel && (
+          <motion.div
+            key="cancel-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => setTripToCancel(null)}
+          >
+            <motion.div
+              key="cancel-modal"
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">Cancel Reservation</h3>
+                <motion.button
+                  onClick={() => setTripToCancel(null)}
+                  whileHover={{ scale: 1.1, backgroundColor: '#f3f4f6' }}
+                  whileTap={{ scale: 0.9 }}
+                  className="p-2 rounded-full transition"
+                >
+                  <XIcon />
+                </motion.button>
+              </div>
 
-            <div className="p-6">
-              <p className="text-gray-600 text-[15px] leading-relaxed">
-                Are you sure you want to cancel this trip? This action cannot be undone, and refunds are subject to the host's cancellation policy.
-              </p>
-            </div>
+              <div className="p-6">
+                <p className="text-gray-600 text-[15px] leading-relaxed">
+                  Are you sure you want to cancel this trip? This action cannot be undone, and refunds are subject to the host's cancellation policy.
+                </p>
+              </div>
 
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
-              <button 
-                onClick={() => setTripToCancel(null)}
-                className="px-5 py-2.5 rounded-xl font-semibold text-gray-700 hover:bg-gray-200 transition text-sm"
-              >
-                Keep Reservation
-              </button>
-              <button 
-                onClick={confirmCancel}
-                disabled={cancelingId === tripToCancel}
-                className="px-5 py-2.5 rounded-xl font-bold text-white bg-[#FF385C] hover:bg-[#E61E4D] transition text-sm flex items-center gap-2 disabled:opacity-70"
-              >
-                {cancelingId === tripToCancel ? 'Cancelling...' : 'Yes, Cancel'}
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+                <motion.button
+                  onClick={() => setTripToCancel(null)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="px-5 py-2.5 rounded-xl font-semibold text-gray-700 hover:bg-gray-200 transition text-sm"
+                >
+                  Keep Reservation
+                </motion.button>
+                <motion.button
+                  onClick={confirmCancel}
+                  disabled={cancelingId === tripToCancel}
+                  whileHover={cancelingId !== tripToCancel ? { scale: 1.02 } : {}}
+                  whileTap={cancelingId !== tripToCancel ? { scale: 0.97 } : {}}
+                  className="px-5 py-2.5 rounded-xl font-bold text-white bg-[#FF385C] hover:bg-[#E61E4D] transition text-sm flex items-center gap-2 disabled:opacity-70"
+                >
+                  <AnimatePresence mode="wait">
+                    {cancelingId === tripToCancel ? (
+                      <motion.span
+                        key="cancelling"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-center gap-2"
+                      >
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 0.75, ease: 'linear' }}
+                          className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                        />
+                        Cancelling…
+                      </motion.span>
+                    ) : (
+                      <motion.span key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        Yes, Cancel
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

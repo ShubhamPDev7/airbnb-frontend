@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { extractError } from '../config/apiError';
 import { useNavigate } from 'react-router-dom';
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
+/* ── Icons ─────────────────────────────────────────────────── */
 const PlusIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -40,13 +41,8 @@ const LocationIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
   </svg>
 );
-const ImageIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-  </svg>
-);
 
-// ── Fallback photos pool ──────────────────────────────────────────────────────
+/* ── Constants ─────────────────────────────────────────────── */
 const FALLBACK_PHOTOS = [
   'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
   'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
@@ -57,30 +53,20 @@ const FALLBACK_PHOTOS = [
 ];
 
 function getHotelCover(hotel) {
-  // Try real photos first
   if (hotel.photos?.length > 0) {
     const first = hotel.photos[0];
     if (first && typeof first === 'string' && first.trim() !== '' && !first.includes('unsplash.com/photos/')) {
       return first;
     }
   }
-  // Deterministic fallback based on hotel id
   return FALLBACK_PHOTOS[(hotel.id ?? 0) % FALLBACK_PHOTOS.length];
 }
 
-// ── Room type presets ─────────────────────────────────────────────────────────
 const ROOM_PRESETS = [
-  'Deluxe Suite',
-  'Standard Double Room',
-  'Twin Room',
-  'Single Room',
-  'Family Suite',
-  'Presidential Suite',
-  'Studio Apartment',
-  'Penthouse',
+  'Deluxe Suite', 'Standard Double Room', 'Twin Room', 'Single Room',
+  'Family Suite', 'Presidential Suite', 'Studio Apartment', 'Penthouse',
 ];
 
-// ── Amenity quick-picks for room ──────────────────────────────────────────────
 const ROOM_AMENITY_OPTIONS = [
   { label: 'WiFi', icon: '📶' },
   { label: 'AC', icon: '❄️' },
@@ -92,23 +78,64 @@ const ROOM_AMENITY_OPTIONS = [
   { label: 'Kitchen', icon: '🍳' },
 ];
 
+/* ── Animation variants ─────────────────────────────────────── */
+const staggerGrid = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.07, delayChildren: 0.1 } },
+};
+
+const cardVariant = {
+  hidden: { opacity: 0, y: 24, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: (d = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: d, ease: [0.22, 1, 0.36, 1] } }),
+};
+
+const staggerList = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.05 } },
+};
+
+const listItem = {
+  hidden: { opacity: 0, x: -8 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.25, ease: 'easeOut' } },
+};
+
+/* ── Animated count-up number ───────────────────────────────── */
+function CountUp({ to, duration = 0.8 }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true });
+  const [val, setVal] = useState(0);
+
+  useEffect(() => {
+    if (!isInView) return;
+    let start = 0;
+    const step = to / (duration * 60);
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= to) { setVal(to); clearInterval(timer); }
+      else setVal(Math.floor(start));
+    }, 1000 / 60);
+    return () => clearInterval(timer);
+  }, [isInView, to, duration]);
+
+  return <span ref={ref}>{val}</span>;
+}
+
+/* ── Main component ─────────────────────────────────────────── */
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [hotels, setHotels] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Modal state
   const [selectedHotelForRoom, setSelectedHotelForRoom] = useState(null);
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   const [roomError, setRoomError] = useState('');
   const [roomForm, setRoomForm] = useState({
-    type: '',
-    customType: '',
-    basePrice: '',
-    capacity: 2,
-    totalCount: 1,
-    amenities: [],
-    extraAmenities: '',
+    type: '', customType: '', basePrice: '', capacity: 2, totalCount: 1, amenities: [], extraAmenities: '',
   });
 
   useEffect(() => { fetchMyHotels(); }, []);
@@ -117,44 +144,27 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/login'); return; }
     try {
-      const res = await fetch(apiUrl('/admin/hotels'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(apiUrl('/admin/hotels'), { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       if (res.ok) {
         const baseHotels = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : [json]);
         const hotelsWithRooms = await Promise.all(baseHotels.map(async (hotel) => {
           try {
-            const roomRes = await fetch(apiUrl(`/admin/hotels/${hotel.id}/rooms`), {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (roomRes.ok) {
-              const roomJson = await roomRes.json();
-              hotel.rooms = Array.isArray(roomJson.data) ? roomJson.data : (Array.isArray(roomJson) ? roomJson : []);
-            } else {
-              hotel.rooms = [];
-            }
-          } catch {
-            hotel.rooms = [];
-          }
+            const roomRes = await fetch(apiUrl(`/admin/hotels/${hotel.id}/rooms`), { headers: { Authorization: `Bearer ${token}` } });
+            hotel.rooms = roomRes.ok ? (await roomRes.json().then(r => Array.isArray(r.data) ? r.data : [])) : [];
+          } catch { hotel.rooms = []; }
           return hotel;
         }));
         setHotels(hotelsWithRooms);
       }
-    } catch (err) {
-      console.error('Failed to load hotels', err);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setIsLoading(false); }
   };
 
   const handleActivate = async (hotelId) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(apiUrl(`/admin/hotels/${hotelId}/activate`), {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(apiUrl(`/admin/hotels/${hotelId}/activate`), { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) fetchMyHotels();
     } catch (err) { console.error(err); }
   };
@@ -163,10 +173,7 @@ export default function AdminDashboard() {
     if (!window.confirm('Delete this property? This cannot be undone.')) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(apiUrl(`/admin/hotels/${hotelId}`), {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(apiUrl(`/admin/hotels/${hotelId}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) fetchMyHotels();
     } catch (err) { console.error(err); }
   };
@@ -180,154 +187,183 @@ export default function AdminDashboard() {
   const toggleRoomAmenity = (label) => {
     setRoomForm(prev => ({
       ...prev,
-      amenities: prev.amenities.includes(label)
-        ? prev.amenities.filter(a => a !== label)
-        : [...prev.amenities, label],
+      amenities: prev.amenities.includes(label) ? prev.amenities.filter(a => a !== label) : [...prev.amenities, label],
     }));
   };
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
     setRoomError('');
-
     const finalType = roomForm.type === '__custom__' ? roomForm.customType.trim() : roomForm.type.trim();
-    if (!finalType) { setRoomError('Please enter a room type.'); return; }
+    if (!finalType) { setRoomError('Please select or enter a room type.'); return; }
     if (!roomForm.basePrice || Number(roomForm.basePrice) <= 0) { setRoomError('Please enter a valid price.'); return; }
-
     setIsSubmittingRoom(true);
     const token = localStorage.getItem('token');
-
-    // Merge quick-pick amenities + extra comma-separated
     const extraList = roomForm.extraAmenities.split(',').map(i => i.trim()).filter(Boolean);
     const allAmenities = [...new Set([...roomForm.amenities, ...extraList])];
-
     const payload = {
-      type: finalType,
-      basePrice: Number(roomForm.basePrice),
-      capacity: Number(roomForm.capacity),
-      totalCount: Number(roomForm.totalCount),
-      amenities: allAmenities,
-      hotelId: Number(selectedHotelForRoom.id),
+      type: finalType, basePrice: Number(roomForm.basePrice), capacity: Number(roomForm.capacity),
+      totalCount: Number(roomForm.totalCount), amenities: allAmenities, hotelId: Number(selectedHotelForRoom.id),
     };
-
     try {
       const res = await fetch(apiUrl(`/admin/hotels/${selectedHotelForRoom.id}/rooms`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        setSelectedHotelForRoom(null);
-        fetchMyHotels();
-      } else {
-        const json = await res.json();
-        setRoomError(extractError(json, 'Failed to add room.'));
-      }
-    } catch {
-      setRoomError('Network error. Please try again.');
-    } finally {
-      setIsSubmittingRoom(false);
-    }
+      if (res.ok) { setSelectedHotelForRoom(null); fetchMyHotels(); }
+      else { const json = await res.json(); setRoomError(extractError(json, 'Failed to add room.')); }
+    } catch { setRoomError('Network error. Please try again.'); }
+    finally { setIsSubmittingRoom(false); }
   };
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const totalRooms = hotels.reduce((acc, h) => acc + (h.rooms?.length ?? 0), 0);
+  const totalRooms  = hotels.reduce((acc, h) => acc + (h.rooms?.length ?? 0), 0);
   const activeCount = hotels.filter(h => h.active || h.isActive).length;
 
+  /* ── Loading ── */
   if (isLoading) return (
     <div className="h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#FF385C] border-t-transparent" />
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+        className="rounded-full h-10 w-10 border-2 border-[#FF385C] border-t-transparent"
+      />
     </div>
   );
 
   return (
     <div className="min-h-screen bg-white">
 
-      {/* ── PAGE HEADER ─────────────────────────────────────────────────────── */}
-      <div className="border-b border-gray-200 bg-white sticky top-0 z-30">
+      {/* ── PAGE HEADER ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="border-b border-gray-200 bg-white sticky top-0 z-30"
+      >
         <div className="max-w-[1280px] mx-auto px-5 md:px-10 lg:px-20 py-5 flex justify-between items-center">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Your Properties</h1>
             <p className="text-sm text-gray-500 mt-0.5 hidden sm:block">Manage listings, add rooms, and go live.</p>
           </div>
-          <button
+          <motion.button
             onClick={() => navigate('/host/create')}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
             className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-black transition text-sm shadow-sm"
           >
             <PlusIcon />
             <span className="hidden sm:inline">New Property</span>
             <span className="sm:hidden">New</span>
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       <div className="max-w-[1280px] mx-auto px-5 md:px-10 lg:px-20 py-8">
 
-        {/* ── STATS ROW ────────────────────────────────────────────────────── */}
+        {/* ── STATS ROW ── */}
         {hotels.length > 0 && (
-          <div className="grid grid-cols-3 gap-4 mb-10">
+          <motion.div
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-3 gap-4 mb-10"
+          >
             {[
-              { label: 'Total Properties', value: hotels.length },
-              { label: 'Active Listings', value: activeCount },
-              { label: 'Room Configurations', value: totalRooms },
-            ].map(stat => (
-              <div key={stat.label} className="bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4">
-                <div className="text-2xl md:text-3xl font-bold text-gray-900">{stat.value}</div>
+              { label: 'Total Properties',      value: hotels.length },
+              { label: 'Active Listings',        value: activeCount  },
+              { label: 'Room Configurations',    value: totalRooms   },
+            ].map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                variants={fadeUp}
+                custom={i * 0.08}
+                className="bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4"
+              >
+                <div className="text-2xl md:text-3xl font-bold text-gray-900">
+                  <CountUp to={stat.value} />
+                </div>
                 <div className="text-xs md:text-sm text-gray-500 mt-0.5">{stat.label}</div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
 
-        {/* ── EMPTY STATE ──────────────────────────────────────────────────── */}
+        {/* ── EMPTY STATE ── */}
         {hotels.length === 0 ? (
-          <div className="text-center py-24 flex flex-col items-center">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-5 text-gray-400">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center py-24 flex flex-col items-center"
+          >
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{ repeat: Infinity, duration: 2.8, ease: 'easeInOut' }}
+              className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-5 text-gray-400"
+            >
               <BuildingIcon />
-            </div>
+            </motion.div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">No properties yet</h2>
             <p className="text-gray-500 text-sm mb-7 max-w-xs">List your first property and start welcoming guests.</p>
-            <button
+            <motion.button
               onClick={() => navigate('/host/create')}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               className="flex items-center gap-2 bg-gradient-to-r from-[#FF385C] to-[#E61E4D] text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition shadow-md"
             >
               <PlusIcon /> Become a Host
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         ) : (
 
-          /* ── HOTEL GRID ──────────────────────────────────────────────────── */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          /* ── HOTEL GRID ── */
+          <motion.div
+            variants={staggerGrid}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+          >
             {hotels.map((hotel) => {
-              const isActive = hotel.active || hotel.isActive;
+              const isActive  = hotel.active || hotel.isActive;
               const roomCount = hotel.rooms?.length ?? 0;
               const coverPhoto = getHotelCover(hotel);
 
               return (
-                <div
+                <motion.div
                   key={hotel.id}
-                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-200 flex flex-col"
+                  variants={cardVariant}
+                  whileHover={{ y: -4, shadow: 'xl' }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-shadow duration-200 flex flex-col"
                 >
-                  {/* ── Cover photo ── */}
-                  <div className="relative h-48 bg-gray-100 overflow-hidden">
-                    <img
+                  {/* Cover photo */}
+                  <div className="relative h-48 bg-gray-100 overflow-hidden group">
+                    <motion.img
                       src={coverPhoto}
                       alt={hotel.name}
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                      onError={(e) => {
-                        // If real photo fails, swap to a deterministic fallback
-                        e.target.onerror = null;
-                        e.target.src = FALLBACK_PHOTOS[(hotel.id ?? 0) % FALLBACK_PHOTOS.length];
-                      }}
+                      className="w-full h-full object-cover"
+                      whileHover={{ scale: 1.06 }}
+                      transition={{ duration: 0.4 }}
+                      onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_PHOTOS[(hotel.id ?? 0) % FALLBACK_PHOTOS.length]; }}
                     />
-                    {/* Dark gradient overlay at bottom */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
 
                     {/* Status pill */}
-                    <div className="absolute top-3 left-3">
+                    <motion.div
+                      initial={{ scale: 0.7, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, type: 'spring', stiffness: 400, damping: 18 }}
+                      className="absolute top-3 left-3"
+                    >
                       {isActive ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-white/90 backdrop-blur text-green-700 px-2.5 py-1 rounded-full shadow-sm">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                          <motion.span
+                            animate={{ scale: [1, 1.4, 1] }}
+                            transition={{ repeat: Infinity, repeatDelay: 2, duration: 0.5 }}
+                            className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"
+                          />
                           Active
                         </span>
                       ) : (
@@ -336,21 +372,21 @@ export default function AdminDashboard() {
                           Draft
                         </span>
                       )}
-                    </div>
+                    </motion.div>
 
                     {/* Hotel ID badge */}
                     <div className="absolute top-3 right-3 text-[11px] font-semibold bg-black/40 backdrop-blur text-white px-2 py-0.5 rounded-full">
                       #{hotel.id}
                     </div>
 
-                    {/* Room count badge on photo bottom */}
+                    {/* Room count badge */}
                     <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/50 backdrop-blur text-white text-xs font-semibold px-2.5 py-1 rounded-full">
                       <BedIcon />
                       {roomCount === 0 ? 'No rooms yet' : `${roomCount} room type${roomCount > 1 ? 's' : ''}`}
                     </div>
                   </div>
 
-                  {/* ── Card body ── */}
+                  {/* Card body */}
                   <div className="p-4 flex-1 flex flex-col">
                     <h3 className="text-base font-bold text-gray-900 truncate leading-snug">{hotel.name}</h3>
                     <div className="flex items-center gap-1 text-gray-500 text-xs mt-1 mb-4">
@@ -359,224 +395,332 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Add Room button */}
-                    <button
+                    <motion.button
                       onClick={() => openRoomModal(hotel)}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm font-semibold text-gray-600 hover:border-gray-900 hover:text-gray-900 transition mb-3"
+                      whileHover={{ borderColor: '#111', color: '#111', scale: 1.01 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm font-semibold text-gray-600 transition mb-3"
                     >
                       <PlusIcon /> Add Room
-                    </button>
+                    </motion.button>
 
                     {/* Action buttons */}
                     <div className="flex gap-2 mt-auto">
                       {!isActive && (
-                        <button
+                        <motion.button
                           onClick={() => handleActivate(hotel.id)}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#FF385C] to-[#E61E4D] text-white py-2.5 rounded-xl text-xs font-bold hover:opacity-90 transition shadow-sm"
                         >
                           <CheckIcon /> Activate
-                        </button>
+                        </motion.button>
                       )}
-                      <button
+                      <motion.button
                         onClick={() => handleDelete(hotel.id)}
-                        className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border border-red-200 text-red-600 hover:bg-red-50 transition ${!isActive ? 'px-4' : 'flex-1'}`}
+                        whileHover={{ scale: 1.03, backgroundColor: '#fef2f2' }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border border-red-200 text-red-600 transition ${!isActive ? 'px-4' : 'flex-1'}`}
                       >
                         <TrashIcon /> Delete
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </div>
 
-      {/* ── ADD ROOM MODAL ──────────────────────────────────────────────────── */}
-      {selectedHotelForRoom && (
-        <div
-          className="fixed inset-0 bg-black/60 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm"
-          onClick={() => setSelectedHotelForRoom(null)}
-        >
-          <div
-            className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col"
-            style={{ maxHeight: '92vh' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal header */}
-            <div className="flex justify-between items-start px-6 py-5 border-b border-gray-100 shrink-0">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Add a room type</h3>
-                <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
-                  <LocationIcon />
-                  {selectedHotelForRoom.name} · {selectedHotelForRoom.city}
-                </p>
+      {/* ── ADD ROOM MODAL ── */}
+      <AnimatePresence>
+        {selectedHotelForRoom && (
+          <>
+            {/* Backdrop + centering wrapper */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+              className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+              onClick={() => setSelectedHotelForRoom(null)}
+            >
+            {/* Sheet */}
+            <motion.div
+              key="modal"
+              initial={{ y: 60, opacity: 0, scale: 0.97 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 60, opacity: 0, scale: 0.97 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+              className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col z-[101]"
+              style={{ maxHeight: '92vh' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="flex justify-between items-start px-6 py-5 border-b border-gray-100 shrink-0">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Add a room type</h3>
+                  <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
+                    <LocationIcon /> {selectedHotelForRoom.name} · {selectedHotelForRoom.city}
+                  </p>
+                </div>
+                <motion.button
+                  onClick={() => setSelectedHotelForRoom(null)}
+                  whileHover={{ scale: 1.1, backgroundColor: '#f3f4f6' }}
+                  whileTap={{ scale: 0.9 }}
+                  className="p-2 rounded-full transition text-gray-500 shrink-0 mt-0.5"
+                >
+                  <XIcon />
+                </motion.button>
               </div>
-              <button
-                onClick={() => setSelectedHotelForRoom(null)}
-                className="p-2 hover:bg-gray-100 rounded-full transition text-gray-500 shrink-0 mt-0.5"
-              >
-                <XIcon />
-              </button>
-            </div>
 
-            {/* Scrollable form body */}
-            <div className="overflow-y-auto flex-1 px-6 py-5">
-              {roomError && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 shrink-0">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                  </svg>
-                  {roomError}
-                </div>
-              )}
+              {/* Scrollable form */}
+              <div className="overflow-y-auto flex-1 px-6 py-5">
 
-              <form onSubmit={handleCreateRoom} id="roomForm">
-                <div className="flex flex-col gap-5">
+                {/* Error */}
+                <AnimatePresence>
+                  {roomError && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                      className="overflow-hidden mb-4"
+                    >
+                      <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 shrink-0">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                        </svg>
+                        {roomError}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                  {/* ── Room type select ── */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">Room type</label>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      {ROOM_PRESETS.map(preset => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setRoomForm(f => ({ ...f, type: preset, customType: '' }))}
-                          className={`py-2.5 px-3 border-2 rounded-xl text-sm font-medium text-left transition ${
-                            roomForm.type === preset
-                              ? 'border-gray-900 bg-gray-50 text-gray-900'
-                              : 'border-gray-200 text-gray-600 hover:border-gray-400'
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setRoomForm(f => ({ ...f, type: '__custom__' }))}
-                        className={`py-2.5 px-3 border-2 rounded-xl text-sm font-medium text-left transition col-span-2 ${
-                          roomForm.type === '__custom__'
-                            ? 'border-gray-900 bg-gray-50 text-gray-900'
-                            : 'border-dashed border-gray-300 text-gray-500 hover:border-gray-500'
-                        }`}
+                <form onSubmit={handleCreateRoom} id="roomForm">
+                  <div className="flex flex-col gap-5">
+
+                    {/* Room type presets */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Room type</label>
+                      <motion.div
+                        variants={staggerList}
+                        initial="hidden"
+                        animate="visible"
+                        className="grid grid-cols-2 gap-2 mb-2"
                       >
-                        + Custom type…
-                      </button>
-                    </div>
-                    {roomForm.type === '__custom__' && (
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="e.g. Garden Cottage"
-                        value={roomForm.customType}
-                        onChange={e => setRoomForm(f => ({ ...f, customType: e.target.value }))}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition"
-                      />
-                    )}
-                  </div>
-
-                  {/* ── Price / Capacity / Count ── */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">Pricing & availability</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Price / night (₹)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-semibold">₹</span>
-                          <input
-                            required type="number" min="1"
-                            value={roomForm.basePrice}
-                            onChange={e => setRoomForm(f => ({ ...f, basePrice: e.target.value }))}
-                            placeholder="2999"
-                            className="w-full pl-7 pr-3 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Capacity</label>
-                        <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden h-[46px]">
-                          <button type="button" onClick={() => setRoomForm(f => ({ ...f, capacity: Math.max(1, f.capacity - 1) }))} className="w-10 h-full flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition shrink-0">−</button>
-                          <span className="flex-1 text-center text-sm font-semibold text-gray-900">{roomForm.capacity}</span>
-                          <button type="button" onClick={() => setRoomForm(f => ({ ...f, capacity: f.capacity + 1 }))} className="w-10 h-full flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition shrink-0">+</button>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Inventory</label>
-                        <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden h-[46px]">
-                          <button type="button" onClick={() => setRoomForm(f => ({ ...f, totalCount: Math.max(1, f.totalCount - 1) }))} className="w-10 h-full flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition shrink-0">−</button>
-                          <span className="flex-1 text-center text-sm font-semibold text-gray-900">{roomForm.totalCount}</span>
-                          <button type="button" onClick={() => setRoomForm(f => ({ ...f, totalCount: f.totalCount + 1 }))} className="w-10 h-full flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition shrink-0">+</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Amenities quick-picks ── */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">Room amenities</label>
-                    <div className="grid grid-cols-4 gap-2 mb-3">
-                      {ROOM_AMENITY_OPTIONS.map(({ label, icon }) => {
-                        const selected = roomForm.amenities.includes(label);
-                        return (
-                          <button
-                            key={label}
+                        {ROOM_PRESETS.map(preset => (
+                          <motion.button
+                            key={preset}
                             type="button"
-                            onClick={() => toggleRoomAmenity(label)}
-                            className={`relative flex flex-col items-center gap-1 py-3 px-2 border-2 rounded-xl transition ${
-                              selected ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-400'
-                            }`}
+                            variants={listItem}
+                            onClick={() => setRoomForm(f => ({ ...f, type: preset, customType: '' }))}
+                            whileTap={{ scale: 0.95 }}
+                            animate={{
+                              borderColor: roomForm.type === preset ? '#111827' : '#e5e7eb',
+                              backgroundColor: roomForm.type === preset ? '#f9fafb' : '#fff',
+                            }}
+                            transition={{ duration: 0.15 }}
+                            className="py-2.5 px-3 border-2 rounded-xl text-sm font-medium text-left text-gray-700"
                           >
-                            {selected && (
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-gray-900 rounded-full flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="white" className="w-2 h-2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                              </div>
-                            )}
-                            <span className="text-lg leading-none">{icon}</span>
-                            <span className="text-[10px] font-medium text-gray-600 text-center leading-tight">{label}</span>
-                          </button>
-                        );
-                      })}
+                            {preset}
+                          </motion.button>
+                        ))}
+                        <motion.button
+                          type="button"
+                          variants={listItem}
+                          onClick={() => setRoomForm(f => ({ ...f, type: '__custom__' }))}
+                          whileTap={{ scale: 0.95 }}
+                          animate={{
+                            borderColor: roomForm.type === '__custom__' ? '#111827' : '#d1d5db',
+                            borderStyle: roomForm.type === '__custom__' ? 'solid' : 'dashed',
+                          }}
+                          className="py-2.5 px-3 border-2 rounded-xl text-sm font-medium text-left text-gray-500 col-span-2"
+                        >
+                          + Custom type…
+                        </motion.button>
+                      </motion.div>
+
+                      <AnimatePresence>
+                        {roomForm.type === '__custom__' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.22 }}
+                          >
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="e.g. Garden Cottage"
+                              value={roomForm.customType}
+                              onChange={e => setRoomForm(f => ({ ...f, customType: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {/* Extra amenities text field */}
-                    <input
-                      type="text"
-                      value={roomForm.extraAmenities}
-                      onChange={e => setRoomForm(f => ({ ...f, extraAmenities: e.target.value }))}
-                      placeholder="More amenities, comma separated (e.g. Safe, Hairdryer)"
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition placeholder-gray-400"
-                    />
+
+                    {/* Price / Capacity / Count */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Pricing & availability</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Price / night (₹)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-semibold">₹</span>
+                            <input
+                              required type="number" min="1"
+                              value={roomForm.basePrice}
+                              onChange={e => setRoomForm(f => ({ ...f, basePrice: e.target.value }))}
+                              placeholder="2999"
+                              className="w-full pl-7 pr-3 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition"
+                            />
+                          </div>
+                        </div>
+                        {[
+                          { key: 'capacity', label: 'Capacity', min: 1 },
+                          { key: 'totalCount', label: 'Inventory', min: 1 },
+                        ].map(({ key, label, min }) => (
+                          <div key={key}>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">{label}</label>
+                            <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden h-[46px]">
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.85 }}
+                                onClick={() => setRoomForm(f => ({ ...f, [key]: Math.max(min, f[key] - 1) }))}
+                                className="w-10 h-full flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition shrink-0"
+                              >−</motion.button>
+                              <span className="flex-1 text-center text-sm font-semibold text-gray-900">{roomForm[key]}</span>
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.85 }}
+                                onClick={() => setRoomForm(f => ({ ...f, [key]: f[key] + 1 }))}
+                                className="w-10 h-full flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition shrink-0"
+                              >+</motion.button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Amenities */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">Room amenities</label>
+                      <div className="grid grid-cols-4 gap-2 mb-3">
+                        {ROOM_AMENITY_OPTIONS.map(({ label, icon }) => {
+                          const selected = roomForm.amenities.includes(label);
+                          return (
+                            <motion.button
+                              key={label}
+                              type="button"
+                              onClick={() => toggleRoomAmenity(label)}
+                              whileTap={{ scale: 0.88 }}
+                              animate={{
+                                borderColor: selected ? '#111827' : '#e5e7eb',
+                                backgroundColor: selected ? '#f9fafb' : '#fff',
+                              }}
+                              transition={{ duration: 0.15 }}
+                              className="relative flex flex-col items-center gap-1 py-3 px-2 border-2 rounded-xl"
+                            >
+                              <AnimatePresence>
+                                {selected && (
+                                  <motion.div
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0, opacity: 0 }}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                                    className="absolute top-1 right-1 w-3.5 h-3.5 bg-gray-900 rounded-full flex items-center justify-center"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="white" className="w-2 h-2">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                    </svg>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                              <span className="text-lg leading-none">{icon}</span>
+                              <span className="text-[10px] font-medium text-gray-600 text-center leading-tight">{label}</span>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                      <input
+                        type="text"
+                        value={roomForm.extraAmenities}
+                        onChange={e => setRoomForm(f => ({ ...f, extraAmenities: e.target.value }))}
+                        placeholder="More amenities, comma separated (e.g. Safe, Hairdryer)"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition placeholder-gray-400"
+                      />
+                    </div>
                   </div>
+                </form>
+              </div>
 
-                </div>
-              </form>
-            </div>
-
-            {/* ── Modal footer CTA ── */}
-            <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex gap-3 bg-white">
-              <button
-                type="button"
-                onClick={() => setSelectedHotelForRoom(null)}
-                className="flex-1 py-3 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                form="roomForm"
-                disabled={isSubmittingRoom}
-                className="flex-1 py-3 rounded-xl font-bold text-sm bg-[#FF385C] text-white hover:bg-[#E61E4D] transition disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {isSubmittingRoom
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving…</>
-                  : 'Save room'
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              {/* Modal footer */}
+              <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex gap-3 bg-white">
+                <motion.button
+                  type="button"
+                  onClick={() => setSelectedHotelForRoom(null)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="flex-1 py-3 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  type="submit"
+                  form="roomForm"
+                  disabled={isSubmittingRoom}
+                  whileHover={!isSubmittingRoom ? { scale: 1.02 } : {}}
+                  whileTap={!isSubmittingRoom ? { scale: 0.97 } : {}}
+                  className="relative flex-1 py-3 rounded-xl font-bold text-sm bg-[#FF385C] text-white hover:bg-[#E61E4D] transition disabled:opacity-60 overflow-hidden flex items-center justify-center gap-2"
+                >
+                  {/* Shimmer */}
+                  {!isSubmittingRoom && (
+                    <motion.span
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+                      initial={{ x: '-100%' }}
+                      animate={{ x: '200%' }}
+                      transition={{ repeat: Infinity, repeatDelay: 2, duration: 0.7, ease: 'easeInOut' }}
+                    />
+                  )}
+                  <AnimatePresence mode="wait">
+                    {isSubmittingRoom ? (
+                      <motion.span
+                        key="saving"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="flex items-center gap-2"
+                      >
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 0.75, ease: 'linear' }}
+                          className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                        />
+                        Saving…
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="save"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                      >
+                        Save room
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              </div>
+            </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 function AirbnbLogo() {
@@ -21,7 +22,7 @@ export default function ForgotPassword() {
     setStatus({ type: '', message: '' });
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/auth/forgot-password', {
+      const response = await fetch(apiUrl('/auth/forgot-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

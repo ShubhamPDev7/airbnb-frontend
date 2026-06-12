@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
 
 // ─── Lock / shield icon for trust signal ─────────────────────────────────────
@@ -48,7 +49,7 @@ export default function Checkout() {
     setError('');
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/bookings/${bookingId}/payments`, {
+      const response = await fetch(apiUrl(`/bookings/${bookingId}/payments`), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });

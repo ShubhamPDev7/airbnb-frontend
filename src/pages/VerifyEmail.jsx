@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function VerifyEmail() {
@@ -17,7 +18,7 @@ export default function VerifyEmail() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/auth/verify-email', {
+      const response = await fetch(apiUrl('/auth/verify-email'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code }),

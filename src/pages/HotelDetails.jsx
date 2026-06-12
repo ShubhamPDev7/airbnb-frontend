@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiUrl } from '../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
 
 /* ─────────────────────────────────────────────────────────────
@@ -513,7 +514,7 @@ export default function HotelDetails() {
   useEffect(() => {
     const fetchHotelDetails = async () => {
       try {
-        const response     = await fetch(`http://localhost:8080/api/v1/hotels/${id}/info`);
+        const response     = await fetch(apiUrl(`/hotels/${id}/info`));
         const jsonResponse = await response.json();
         if (jsonResponse.data) {
           setHotelInfo(jsonResponse.data);
@@ -545,7 +546,7 @@ export default function HotelDetails() {
     if (!token) { navigate('/login'); return; }
     setIsReserving(true);
     try {
-      const response = await fetch('http://localhost:8080/api/v1/bookings/init', {
+      const response = await fetch(apiUrl('/bookings/init'), {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({

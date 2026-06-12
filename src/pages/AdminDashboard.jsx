@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/login'); return; }
     try {
-      const res = await fetch('http://localhost:8080/api/v1/admin/hotels', {
+      const res = await fetch(apiUrl('/admin/hotels'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
@@ -123,7 +124,7 @@ export default function AdminDashboard() {
         const baseHotels = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : [json]);
         const hotelsWithRooms = await Promise.all(baseHotels.map(async (hotel) => {
           try {
-            const roomRes = await fetch(`http://localhost:8080/api/v1/admin/hotels/${hotel.id}/rooms`, {
+            const roomRes = await fetch(apiUrl(`/admin/hotels/${hotel.id}/rooms`), {
               headers: { Authorization: `Bearer ${token}` },
             });
             if (roomRes.ok) {
@@ -149,7 +150,7 @@ export default function AdminDashboard() {
   const handleActivate = async (hotelId) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/admin/hotels/${hotelId}/activate`, {
+      const res = await fetch(apiUrl(`/admin/hotels/${hotelId}/activate`), {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -161,7 +162,7 @@ export default function AdminDashboard() {
     if (!window.confirm('Delete this property? This cannot be undone.')) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/admin/hotels/${hotelId}`, {
+      const res = await fetch(apiUrl(`/admin/hotels/${hotelId}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -209,7 +210,7 @@ export default function AdminDashboard() {
     };
 
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/admin/hotels/${selectedHotelForRoom.id}/rooms`, {
+      const res = await fetch(apiUrl(`/admin/hotels/${selectedHotelForRoom.id}/rooms`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),

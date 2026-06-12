@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 
@@ -24,7 +25,7 @@ export default function Signup() {
     setIsLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:8080/api/v1/auth/signup', {
+      const response = await fetch(apiUrl('/auth/signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -48,7 +49,7 @@ export default function Signup() {
     setError('');
     try {
       const idToken = credentialResponse.credential;
-      const response = await fetch('http://localhost:8080/api/v1/auth/google', {
+      const response = await fetch(apiUrl('/auth/google'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken: idToken }),

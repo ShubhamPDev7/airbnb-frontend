@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 /* ── Categories ── */
@@ -533,7 +534,7 @@ export default function Home() {
       setIsLoading(true);
       setErrorMsg('');
       try {
-        const res = await fetch('http://localhost:8080/api/v1/hotels/search', {
+        const res = await fetch(apiUrl('/hotels/search'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
@@ -244,7 +245,7 @@ export default function MyTrips() {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/login'); return; }
     try {
-      const response = await fetch('http://localhost:8080/api/v1/users/myBookings', {
+      const response = await fetch(apiUrl('/users/myBookings'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const jsonResponse = await response.json();
@@ -271,7 +272,7 @@ export default function MyTrips() {
     setCancelingId(tripToCancel);
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/bookings/${tripToCancel}/cancel`, {
+      const response = await fetch(apiUrl(`/bookings/${tripToCancel}/cancel`), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });

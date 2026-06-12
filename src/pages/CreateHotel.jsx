@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 
 const STEPS = ['Basics', 'Amenities', 'Photos'];
@@ -88,7 +89,7 @@ export default function CreateHotel() {
     const cleanPhotos = photoUrls.filter(url => url.trim() !== '');
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/admin/hotels', {
+      const response = await fetch(apiUrl('/admin/hotels'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

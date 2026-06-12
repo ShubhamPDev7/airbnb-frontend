@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 
 function AirbnbLogo() {
@@ -28,7 +29,7 @@ export default function CompleteProfile() {
       // Grab the JWT token from storage to prove who is logged in
       const token = localStorage.getItem('token'); 
       
-      const response = await fetch('http://localhost:8080/api/v1/users/profile', {
+      const response = await fetch(apiUrl('/users/profile'), {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',

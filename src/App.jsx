@@ -89,7 +89,7 @@ function Navbar() {
     const finalCity = searchCity.trim() === '' ? 'Pune' : searchCity.trim();
     const finalStart = startDate || new Date().toISOString().split('T')[0];
     const finalEnd = endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    navigate(`/?city=${finalCity}&startDate=${finalStart}&endDate=${finalEnd}&roomsCount=${roomsCount}`);
+    navigate(`/?city=${encodeURIComponent(finalCity)}&startDate=${finalStart}&endDate=${finalEnd}&roomsCount=${roomsCount}`);
   };
 
   const changeMonth = (offset) =>

@@ -1,0 +1,13 @@
+/* Add this to your index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GLOBAL UTILITIES */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

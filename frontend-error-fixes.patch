@@ -1,0 +1,232 @@
+diff --git a/src/pages/AdminDashboard.jsx b/src/pages/AdminDashboard.jsx
+index d425d31..8b4a158 100644
+--- a/src/pages/AdminDashboard.jsx
++++ b/src/pages/AdminDashboard.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate } from 'react-router-dom';
+ 
+ // ── Icons ─────────────────────────────────────────────────────────────────────
+@@ -220,7 +221,7 @@ export default function AdminDashboard() {
+         fetchMyHotels();
+       } else {
+         const json = await res.json();
+-        setRoomError(json.error?.message || 'Failed to add room.');
++        setRoomError(extractError(json, 'Failed to add room.'));
+       }
+     } catch {
+       setRoomError('Network error. Please try again.');
+diff --git a/src/pages/CompleteProfile.jsx b/src/pages/CompleteProfile.jsx
+index 21d422a..6b35f8c 100644
+--- a/src/pages/CompleteProfile.jsx
++++ b/src/pages/CompleteProfile.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate } from 'react-router-dom';
+ 
+ function AirbnbLogo() {
+@@ -45,7 +46,7 @@ export default function CompleteProfile() {
+         navigate('/'); 
+       } else {
+         // This will catch validation errors (e.g. name too short, date in future)
+-        setError(data.error?.message || data.message || 'Failed to update profile.');
++        setError(extractError(data, 'Failed to update profile.'));
+       }
+     } catch {
+       setError('Could not connect to the server.');
+diff --git a/src/pages/CreateHotel.jsx b/src/pages/CreateHotel.jsx
+index 7d87795..ed5ee64 100644
+--- a/src/pages/CreateHotel.jsx
++++ b/src/pages/CreateHotel.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate } from 'react-router-dom';
+ 
+ const STEPS = ['Basics', 'Amenities', 'Photos'];
+@@ -103,7 +104,7 @@ export default function CreateHotel() {
+       if (response.ok && jsonResponse.data) {
+         navigate('/admin/dashboard');
+       } else {
+-        setErrorMsg(jsonResponse.error?.message || 'Failed to create property.');
++        setErrorMsg(extractError(jsonResponse, 'Failed to create property.'));
+       }
+     } catch {
+       setErrorMsg('Could not connect to the server. Please try again.');
+diff --git a/src/pages/ForgotPassword.jsx b/src/pages/ForgotPassword.jsx
+index 0c7f22e..ecc86ed 100644
+--- a/src/pages/ForgotPassword.jsx
++++ b/src/pages/ForgotPassword.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate, Link } from 'react-router-dom';
+ 
+ function AirbnbLogo() {
+@@ -34,7 +35,7 @@ export default function ForgotPassword() {
+         setStatus({ type: 'success', message: data.message || 'Check your email for a reset link.' });
+         setEmail(''); // Clear the input
+       } else {
+-        setStatus({ type: 'error', message: data.error?.message || 'Failed to send reset link.' });
++        setStatus({ type: 'error', message: extractError(data, 'Failed to send reset link.') });
+       }
+     } catch {
+       setStatus({ type: 'error', message: 'Could not connect to the server.' });
+diff --git a/src/pages/HotelDetails.jsx b/src/pages/HotelDetails.jsx
+index 9877d28..fcd33b1 100644
+--- a/src/pages/HotelDetails.jsx
++++ b/src/pages/HotelDetails.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect, useCallback } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useParams, useNavigate } from 'react-router-dom';
+ 
+ /* ─────────────────────────────────────────────────────────────
+@@ -558,7 +559,7 @@ export default function HotelDetails() {
+       });
+       const data = await response.json();
+       if (response.ok) navigate(`/checkout/${data.data.id}`);
+-      else setBookingError(data.error?.message || 'Failed to initialize booking.');
++      else setBookingError(extractError(data, 'Failed to initialize booking.'));
+     } catch {
+       setBookingError('Network error. Please try again.');
+     } finally {
+diff --git a/src/pages/Login.jsx b/src/pages/Login.jsx
+index 0a08700..38dca73 100644
+--- a/src/pages/Login.jsx
++++ b/src/pages/Login.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate, Link } from 'react-router-dom';
+ import { GoogleLogin } from '@react-oauth/google';
+ 
+@@ -46,7 +47,7 @@ export default function Login() {
+         }
+         
+       } else {
+-        setError(responseData.error?.message || 'Invalid email or password.');
++        setError(extractError(responseData, 'Invalid email or password.'));
+       }
+     } catch {
+       setError('Could not connect to the server.');
+@@ -85,7 +86,7 @@ export default function Login() {
+         }
+         
+       } else {
+-        setError(responseData.error?.message || 'Google login failed.');
++        setError(extractError(responseData, 'Google login failed.'));
+       }
+     } catch (err) {
+       setError('Network error during Google Login.');
+diff --git a/src/pages/MyTrips.jsx b/src/pages/MyTrips.jsx
+index 67a2dc5..4b2293d 100644
+--- a/src/pages/MyTrips.jsx
++++ b/src/pages/MyTrips.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate } from 'react-router-dom';
+ 
+ // ─── SVG Icons ───────────────────────────────────────────────────────────────
+@@ -252,7 +253,7 @@ export default function MyTrips() {
+       if (response.ok && jsonResponse.data) {
+         setBookings(jsonResponse.data.sort((a, b) => b.id - a.id));
+       } else {
+-        setError(jsonResponse.error?.message || 'Failed to load trips.');
++        setError(extractError(jsonResponse, 'Failed to load trips.'));
+       }
+     } catch {
+       setError('Could not connect to server.');
+@@ -280,7 +281,7 @@ export default function MyTrips() {
+         fetchMyTrips(); 
+       } else {
+         const jsonResponse = await response.json();
+-        alert(jsonResponse.error?.message || 'Could not cancel booking.');
++        alert(extractError(jsonResponse, 'Could not cancel booking.'));
+       }
+     } catch { 
+       alert('Network error.'); 
+diff --git a/src/pages/ResetPassword.jsx b/src/pages/ResetPassword.jsx
+index 5ffc9ff..31ee212 100644
+--- a/src/pages/ResetPassword.jsx
++++ b/src/pages/ResetPassword.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+ 
+ function AirbnbLogo() {
+@@ -38,7 +39,7 @@ export default function ResetPassword() {
+         setStatus({ type: 'success', message: 'Password reset successful! Redirecting...' });
+         setTimeout(() => navigate('/login'), 2500); // Send them to login after 2.5s
+       } else {
+-        setStatus({ type: 'error', message: data.error?.message || 'Invalid or expired token.' });
++        setStatus({ type: 'error', message: extractError(data, 'Invalid or expired token.') });
+       }
+     } catch {
+       setStatus({ type: 'error', message: 'Could not connect to the server.' });
+diff --git a/src/pages/Signup.jsx b/src/pages/Signup.jsx
+index 481bd67..437e30c 100644
+--- a/src/pages/Signup.jsx
++++ b/src/pages/Signup.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate, Link } from 'react-router-dom';
+ import { GoogleLogin } from '@react-oauth/google';
+ 
+@@ -34,7 +35,7 @@ export default function Signup() {
+       if (response.ok) {
+         navigate('/verify-email', { state: { email: formData.email } });
+       } else {
+-        setError(data.error?.message || 'Signup failed. Please try again.');
++        setError(extractError(data, 'Signup failed. Please try again.'));
+       }
+     } catch {
+       setError('Could not connect to the server.');
+@@ -58,10 +59,11 @@ export default function Signup() {
+       const data = await response.json();
+       
+       if (response.ok) {
+-        localStorage.setItem('token', data.accessToken || data.data?.accessToken);
++        const payload = data.data || data;
++        localStorage.setItem('token', payload.accessToken);
+         navigate('/');
+       } else {
+-        setError(data.error?.message || 'Google signup failed.');
++        setError(extractError(data, 'Google signup failed.'));
+       }
+     } catch (err) {
+       setError('Network error during Google Signup.');
+diff --git a/src/pages/VerifyEmail.jsx b/src/pages/VerifyEmail.jsx
+index d61a109..d60373c 100644
+--- a/src/pages/VerifyEmail.jsx
++++ b/src/pages/VerifyEmail.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { apiUrl } from '../config/api';
++import { extractError } from '../config/apiError';
+ import { useNavigate, useLocation } from 'react-router-dom';
+ 
+ export default function VerifyEmail() {
+@@ -28,7 +29,7 @@ export default function VerifyEmail() {
+         navigate('/login'); // Success! Redirect to login
+       } else {
+         const data = await response.json();
+-        setError(data.error?.message || 'Invalid code.');
++        setError(extractError(data, 'Invalid code.'));
+       }
+     } catch {
+       setError('Connection error.');

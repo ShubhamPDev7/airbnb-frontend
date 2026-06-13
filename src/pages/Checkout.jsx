@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
+
+const SERVICE_FEE_RATE = 0.12; // must match CheckOutServiceImpl.java
 
 /* ── Icons ─────────────────────────────────────────────────── */
 function ShieldIcon() {
@@ -38,12 +40,38 @@ function StripeLogo() {
   );
 }
 
-/* ── Animation variants ─────────────────────────────────────── */
+function CalendarIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  );
+}
+
+/* ── Helpers ── */
+function fmt(amount) {
+  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const [y, m, d] = dateStr.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
+}
+
+function nightsBetween(checkIn, checkOut) {
+  if (!checkIn || !checkOut) return 0;
+  const a = new Date(checkIn);
+  const b = new Date(checkOut);
+  return Math.round((b - a) / 86400000);
+}
+
+/* ── Animation variants ── */
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   visible: (delay = 0) => ({
-    opacity: 1,
-    y: 0,
+    opacity: 1, y: 0,
     transition: { duration: 0.45, delay, ease: [0.22, 1, 0.36, 1] },
   }),
 };
@@ -59,21 +87,61 @@ const sectionFadeUp = {
 };
 
 const shakeVariants = {
-  shake: {
-    x: [0, -8, 8, -6, 6, -3, 3, 0],
-    transition: { duration: 0.5 },
-  },
+  shake: { x: [0, -8, 8, -6, 6, -3, 3, 0], transition: { duration: 0.5 } },
   rest: { x: 0 },
 };
 
-/* ── Main component ─────────────────────────────────────────── */
+/* ── Skeleton loader ── */
+function SkeletonLine({ w = 'w-full', h = 'h-4' }) {
+  return <div className={`${w} ${h} bg-gray-100 rounded-lg animate-pulse`} />;
+}
+
+/* ── Main component ── */
 export default function Checkout() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
-  const [error, setError] = useState('');
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [shake, setShake] = useState(false);
 
+  const [booking,             setBooking]            = useState(null);
+  const [isFetchingBooking,   setIsFetchingBooking]  = useState(true);
+  const [fetchError,          setFetchError]         = useState('');
+  const [error,               setError]              = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [shake,               setShake]              = useState(false);
+
+  /* ── Fetch booking details ── */
+  useEffect(() => {
+    const fetchBooking = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) { navigate('/login'); return; }
+      try {
+        const res = await fetch(apiUrl(`/bookings/${bookingId}`), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (res.ok && json.data) {
+          setBooking(json.data);
+        } else {
+          setFetchError('Could not load booking details.');
+        }
+      } catch {
+        setFetchError('Network error loading booking.');
+      } finally {
+        setIsFetchingBooking(false);
+      }
+    };
+    fetchBooking();
+  }, [bookingId, navigate]);
+
+  /* ── Derived pricing ── */
+  const baseAmount  = booking ? Number(booking.amount) : 0;
+  const serviceFee  = booking ? Math.round(baseAmount * SERVICE_FEE_RATE) : 0;
+  const totalAmount = baseAmount + serviceFee;
+  const nights      = booking ? nightsBetween(booking.checkInDate, booking.checkOutDate) : 0;
+  const pricePerNightPerRoom = (booking && nights && booking.roomsCount)
+    ? Math.round(baseAmount / nights / booking.roomsCount)
+    : 0;
+
+  /* ── Pay ── */
   const handlePayment = async () => {
     setIsProcessingPayment(true);
     setError('');
@@ -104,7 +172,7 @@ export default function Checkout() {
     <div className="min-h-screen bg-white pt-20 pb-16">
       <div className="max-w-5xl mx-auto px-5 sm:px-8">
 
-        {/* ── Back nav ── */}
+        {/* Back nav */}
         <motion.button
           onClick={() => navigate(-1)}
           initial={{ opacity: 0, x: -10 }}
@@ -117,7 +185,7 @@ export default function Checkout() {
           <span className="text-sm">Back</span>
         </motion.button>
 
-        {/* ── Page title ── */}
+        {/* Page title */}
         <motion.h1
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -127,10 +195,16 @@ export default function Checkout() {
           Confirm and pay
         </motion.h1>
 
-        {/* ── Two-column layout ── */}
+        {/* Fetch error */}
+        {fetchError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm">
+            {fetchError}
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-10 lg:gap-14 items-start">
 
-          {/* ── LEFT: staggered sections ── */}
+          {/* ── LEFT ── */}
           <motion.div
             variants={stagger}
             initial="hidden"
@@ -138,46 +212,92 @@ export default function Checkout() {
             className="flex-1 w-full min-w-0 space-y-7"
           >
             {/* Booking reference */}
-            <motion.div
-              variants={sectionFadeUp}
-              className="flex items-center justify-between py-5 border-b border-gray-200"
-            >
+            <motion.div variants={sectionFadeUp} className="flex items-center justify-between py-5 border-b border-gray-200">
               <div>
                 <p className="text-[15px] font-semibold text-gray-900">Reservation held</p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Complete payment to confirm your stay
-                </p>
+                <p className="text-sm text-gray-500 mt-0.5">Complete payment to confirm your stay</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Booking ref</p>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.4 }}
-                  className="font-mono font-bold text-gray-900 text-sm"
-                >
-                  #{bookingId}
-                </motion.p>
+                <p className="font-mono font-bold text-gray-900 text-sm">#{bookingId}</p>
               </div>
             </motion.div>
 
-            {/* Price details */}
+            {/* ── Booking summary (hotel + dates) ── */}
+            <motion.div variants={sectionFadeUp} className="py-2 border-b border-gray-200 pb-7 space-y-4">
+              <h2 className="text-[17px] font-bold text-gray-900">Your stay</h2>
+
+              {isFetchingBooking ? (
+                <div className="space-y-3">
+                  <SkeletonLine w="w-2/3" />
+                  <SkeletonLine w="w-1/2" h="h-3" />
+                  <SkeletonLine w="w-3/4" h="h-3" />
+                </div>
+              ) : booking ? (
+                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                  {/* Hotel + room */}
+                  <div>
+                    <p className="font-semibold text-gray-900 text-[15px]">
+                      {booking.hotel?.name}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      {booking.room?.type} · {booking.roomsCount} room{booking.roomsCount > 1 ? 's' : ''}
+                    </p>
+                  </div>
+
+                  {/* Dates */}
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <CalendarIcon />
+                    <span>
+                      <span className="font-medium">{formatDate(booking.checkInDate)}</span>
+                      <span className="text-gray-400 mx-2">→</span>
+                      <span className="font-medium">{formatDate(booking.checkOutDate)}</span>
+                    </span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-gray-500">{nights} night{nights !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+
+            {/* ── Price breakdown ── */}
             <motion.div variants={sectionFadeUp} className="space-y-4 py-2 border-b border-gray-200 pb-7">
               <h2 className="text-[17px] font-bold text-gray-900">Price details</h2>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-[15px] text-gray-700">
-                  <span>Accommodation charge</span>
-                  <span className="font-medium text-gray-900">Calculated at checkout</span>
+
+              {isFetchingBooking ? (
+                <div className="space-y-3">
+                  <SkeletonLine />
+                  <SkeletonLine w="w-4/5" />
+                  <SkeletonLine w="w-full" h="h-5" />
                 </div>
-                <div className="flex justify-between items-center text-[15px] text-gray-700">
-                  <span>Taxes &amp; fees</span>
-                  <span className="font-medium text-gray-900">Included</span>
+              ) : booking ? (
+                <div className="space-y-3">
+                  {/* Per night breakdown */}
+                  <div className="flex justify-between items-center text-[15px] text-gray-700">
+                    <span className="underline cursor-default">
+                      {fmt(pricePerNightPerRoom)} × {nights} night{nights !== 1 ? 's' : ''} × {booking.roomsCount} room{booking.roomsCount > 1 ? 's' : ''}
+                    </span>
+                    <span className="font-medium text-gray-900">{fmt(baseAmount)}</span>
+                  </div>
+
+                  {/* Service fee */}
+                  <div className="flex justify-between items-center text-[15px] text-gray-700">
+                    <span className="underline cursor-default">Service fee</span>
+                    <span className="font-medium text-gray-900">{fmt(serviceFee)}</span>
+                  </div>
+
+                  {/* Total */}
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-200 text-[15px] font-bold text-gray-900">
+                    <span>Total (INR)</span>
+                    <span>{fmt(totalAmount)}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-between items-center pt-3 border-t border-gray-200 text-[15px] font-bold text-gray-900">
-                <span>Total (INR)</span>
-                <span>Due at payment</span>
-              </div>
+              ) : (
+                <div className="flex justify-between items-center text-[15px] text-gray-700">
+                  <span>Total</span>
+                  <span className="font-medium">Due at payment</span>
+                </div>
+              )}
             </motion.div>
 
             {/* Cancellation policy */}
@@ -195,20 +315,9 @@ export default function Checkout() {
               <p className="text-sm text-gray-600 leading-relaxed">
                 We ask every guest to remember a few simple things about what makes a great stay.
               </p>
-              <motion.ul
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                className="mt-3 space-y-1.5 text-sm text-gray-600"
-              >
+              <motion.ul variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }} className="mt-3 space-y-1.5 text-sm text-gray-600">
                 {['Follow the house rules', 'Treat the space with care', 'Communicate with your host'].map((r, i) => (
-                  <motion.li
-                    key={r}
-                    custom={i * 0.07}
-                    variants={fadeUp}
-                    className="flex items-center gap-2"
-                  >
+                  <motion.li key={r} custom={i * 0.07} variants={fadeUp} className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
                     {r}
                   </motion.li>
@@ -229,13 +338,27 @@ export default function Checkout() {
               animate={shake ? 'shake' : 'rest'}
               className="border border-gray-200 rounded-2xl shadow-lg p-6 sticky top-28 space-y-5"
             >
+              {/* Hotel summary in card */}
+              {isFetchingBooking ? (
+                <div className="pb-4 border-b border-gray-100 space-y-2">
+                  <SkeletonLine w="w-3/4" h="h-5" />
+                  <SkeletonLine w="w-1/2" h="h-3" />
+                  <SkeletonLine w="w-2/3" h="h-3" />
+                </div>
+              ) : booking ? (
+                <div className="pb-4 border-b border-gray-100">
+                  <p className="font-bold text-gray-900 text-base leading-tight">{booking.hotel?.name}</p>
+                  <p className="text-sm text-gray-500 mt-0.5">{booking.room?.type}</p>
+                  <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600">
+                    <CalendarIcon />
+                    <span>{formatDate(booking.checkInDate)} – {formatDate(booking.checkOutDate)}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">{nights} night{nights !== 1 ? 's' : ''} · {booking.roomsCount} room{booking.roomsCount > 1 ? 's' : ''}</p>
+                </div>
+              ) : null}
+
               {/* Trust badge */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4, duration: 0.4 }}
-                className="flex items-center gap-2 text-sm font-medium text-gray-700 pb-4 border-b border-gray-100"
-              >
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 pb-4 border-b border-gray-100">
                 <motion.span
                   animate={{ scale: [1, 1.12, 1] }}
                   transition={{ repeat: Infinity, repeatDelay: 3, duration: 0.6, ease: 'easeInOut' }}
@@ -244,25 +367,31 @@ export default function Checkout() {
                   <ShieldIcon />
                 </motion.span>
                 <span>Protected by StayLux Secure Payments</span>
-              </motion.div>
+              </div>
 
-              {/* Reservation details */}
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45, duration: 0.4 }}
-                className="space-y-3"
-              >
-                <h3 className="font-bold text-gray-900 text-[15px]">Your reservation</h3>
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Reference</span>
-                  <span className="font-mono font-semibold text-gray-900">#{bookingId}</span>
+              {/* Price summary in card */}
+              {isFetchingBooking ? (
+                <div className="space-y-2">
+                  <SkeletonLine />
+                  <SkeletonLine w="w-4/5" />
+                  <SkeletonLine h="h-5" />
                 </div>
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Payment</span>
-                  <span className="text-gray-900 font-medium">Stripe (secure)</span>
+              ) : booking ? (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Accommodation</span>
+                    <span className="font-medium text-gray-900">{fmt(baseAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Service fee (12%)</span>
+                    <span className="font-medium text-gray-900">{fmt(serviceFee)}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-gray-100 font-bold text-gray-900 text-[15px]">
+                    <span>Total</span>
+                    <span>{fmt(totalAmount)}</span>
+                  </div>
                 </div>
-              </motion.div>
+              ) : null}
 
               {/* Error */}
               <AnimatePresence>
@@ -271,7 +400,7 @@ export default function Checkout() {
                     initial={{ opacity: 0, height: 0, y: -6 }}
                     animate={{ opacity: 1, height: 'auto', y: 0 }}
                     exit={{ opacity: 0, height: 0, y: -6 }}
-                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    transition={{ duration: 0.28 }}
                     className="overflow-hidden"
                   >
                     <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm flex items-start gap-2">
@@ -284,17 +413,16 @@ export default function Checkout() {
                 )}
               </AnimatePresence>
 
-              {/* CTA button */}
+              {/* CTA */}
               <motion.button
                 onClick={handlePayment}
-                disabled={isProcessingPayment}
-                whileHover={!isProcessingPayment ? { scale: 1.02 } : {}}
-                whileTap={!isProcessingPayment ? { scale: 0.97 } : {}}
+                disabled={isProcessingPayment || isFetchingBooking}
+                whileHover={!isProcessingPayment && !isFetchingBooking ? { scale: 1.02 } : {}}
+                whileTap={!isProcessingPayment && !isFetchingBooking ? { scale: 0.97 } : {}}
                 transition={{ type: 'spring', stiffness: 400, damping: 18 }}
                 className="relative w-full overflow-hidden bg-gradient-to-r from-[#FF385C] to-[#E61E4D] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 text-[15px]"
               >
-                {/* Shimmer sweep when idle */}
-                {!isProcessingPayment && (
+                {!isProcessingPayment && !isFetchingBooking && (
                   <motion.span
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
                     initial={{ x: '-100%' }}
@@ -302,62 +430,33 @@ export default function Checkout() {
                     transition={{ repeat: Infinity, repeatDelay: 2.5, duration: 0.8, ease: 'easeInOut' }}
                   />
                 )}
-
                 <AnimatePresence mode="wait">
                   {isProcessingPayment ? (
-                    <motion.span
-                      key="loading"
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ duration: 0.2 }}
-                      className="flex items-center gap-2"
-                    >
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 0.75, ease: 'linear' }}
-                        className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-                      />
+                    <motion.span key="loading" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.2 }} className="flex items-center gap-2">
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: 'linear' }} className="w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                       Redirecting…
                     </motion.span>
                   ) : (
-                    <motion.span
-                      key="idle"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      Confirm and pay
+                    <motion.span key="idle" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }}>
+                      {isFetchingBooking ? 'Loading…' : `Confirm and pay ${booking ? fmt(totalAmount) : ''}`}
                     </motion.span>
                   )}
                 </AnimatePresence>
               </motion.button>
 
               {/* Secure note */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6, duration: 0.4 }}
-                className="flex items-center justify-center gap-1.5 text-xs text-gray-400"
-              >
+              <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
                 <LockIcon />
                 <span>Secured by</span>
                 <StripeLogo />
-              </motion.div>
+              </div>
 
-              {/* Fine print */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.65, duration: 0.4 }}
-                className="text-xs text-gray-400 text-center leading-relaxed"
-              >
+              <p className="text-xs text-gray-400 text-center leading-relaxed">
                 By confirming, you agree to StayLux's{' '}
                 <span className="underline cursor-pointer hover:text-gray-600">Terms of Service</span>{' '}
                 and{' '}
                 <span className="underline cursor-pointer hover:text-gray-600">Refund Policy</span>.
-              </motion.p>
+              </p>
             </motion.div>
           </motion.div>
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { extractError } from '../config/apiError';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +25,7 @@ export default function CreateHotel() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
+  const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
   const [formData, setFormData] = useState({
     name: '',
     city: '',
@@ -72,11 +74,13 @@ export default function CreateHotel() {
   const goNext = () => {
     if (!validateStep()) return;
     setErrorMsg('');
+    setDirection(1);
     setStep(s => Math.min(s + 1, STEPS.length - 1));
   };
 
   const goBack = () => {
     setErrorMsg('');
+    setDirection(-1);
     setStep(s => Math.max(s - 1, 0));
   };
 
@@ -115,6 +119,13 @@ export default function CreateHotel() {
 
   const progress = ((step + 1) / STEPS.length) * 100;
 
+  // Slide transition for step content
+  const stepVariants = {
+    enter: (dir) => ({ x: dir > 0 ? 40 : -40, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir) => ({ x: dir > 0 ? -40 : 40, opacity: 0 }),
+  };
+
   return (
     <div className="min-h-screen bg-white">
 
@@ -137,22 +148,33 @@ export default function CreateHotel() {
             <div className="flex items-center gap-2">
               {STEPS.map((s, i) => (
                 <div key={s} className="flex items-center gap-2">
-                  <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${
-                    i === step
-                      ? 'bg-gray-900 text-white'
-                      : i < step
-                      ? 'bg-gray-100 text-gray-500'
-                      : 'text-gray-400'
-                  }`}>
-                    {i < step && (
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    )}
+                  <motion.div
+                    layout
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                      i === step
+                        ? 'bg-gray-900 text-white'
+                        : i < step
+                        ? 'bg-gray-100 text-gray-500'
+                        : 'text-gray-400'
+                    }`}>
+                    <AnimatePresence>
+                      {i < step && (
+                        <motion.svg
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </motion.svg>
+                      )}
+                    </AnimatePresence>
                     {s}
-                  </div>
+                  </motion.div>
                   {i < STEPS.length - 1 && (
-                    <div className={`w-4 h-px ${i < step ? 'bg-gray-300' : 'bg-gray-200'}`} />
+                    <div className={`w-4 h-px transition-colors duration-300 ${i < step ? 'bg-gray-300' : 'bg-gray-200'}`} />
                   )}
                 </div>
               ))}
@@ -165,9 +187,10 @@ export default function CreateHotel() {
 
         {/* thin progress bar */}
         <div className="h-0.5 bg-gray-100">
-          <div
-            className="h-full bg-[#FF385C] transition-all duration-500"
-            style={{ width: `${progress}%` }}
+          <motion.div
+            className="h-full bg-[#FF385C]"
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.4, ease: 'easeInOut' }}
           />
         </div>
       </div>
@@ -185,9 +208,18 @@ export default function CreateHotel() {
           </div>
         )}
 
+        <AnimatePresence mode="wait" custom={direction}>
         {/* ── STEP 0: Basics ── */}
         {step === 0 && (
-          <div>
+          <motion.div
+            key="step0"
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+          >
             <div className="mb-10">
               <h1 className="text-3xl font-semibold text-gray-900 leading-tight mb-2">Tell us about your place</h1>
               <p className="text-gray-500">Share some basics, so guests know what your property is like.</p>
@@ -260,12 +292,20 @@ export default function CreateHotel() {
                 <p className="text-xs text-gray-400 mt-2">Guests may use this to reach you before their stay.</p>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ── STEP 1: Amenities ── */}
         {step === 1 && (
-          <div>
+          <motion.div
+            key="step1"
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+          >
             <div className="mb-10">
               <h1 className="text-3xl font-semibold text-gray-900 leading-tight mb-2">What does your place offer?</h1>
               <p className="text-gray-500">Pick everything that's available for guests to use.</p>
@@ -275,28 +315,38 @@ export default function CreateHotel() {
               {AMENITY_OPTIONS.map(({ label, icon }) => {
                 const selected = amenities.includes(label);
                 return (
-                  <button
+                  <motion.button
                     key={label}
                     type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => toggleAmenity(label)}
-                    className={`relative flex flex-col items-start gap-2 p-4 border-2 rounded-2xl cursor-pointer transition-all text-left ${
+                    className={`relative flex flex-col items-start gap-2 p-4 border-2 rounded-2xl cursor-pointer transition-colors text-left ${
                       selected
                         ? 'border-gray-900 bg-gray-50'
                         : 'border-gray-200 hover:border-gray-400 bg-white'
                     }`}
                   >
-                    {selected && (
-                      <div className="absolute top-2.5 right-2.5 w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="white" className="w-3 h-3">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      </div>
-                    )}
+                    <AnimatePresence>
+                      {selected && (
+                        <motion.div
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                          className="absolute top-2.5 right-2.5 w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="white" className="w-3 h-3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <span className="text-2xl leading-none">{icon}</span>
                     <span className={`text-sm font-medium leading-tight ${selected ? 'text-gray-900' : 'text-gray-600'}`}>
                       {label}
                     </span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -306,12 +356,20 @@ export default function CreateHotel() {
                 {amenities.length} amenit{amenities.length === 1 ? 'y' : 'ies'} selected
               </p>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* ── STEP 2: Photos ── */}
         {step === 2 && (
-          <div>
+          <motion.div
+            key="step2"
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+          >
             <div className="mb-10">
               <h1 className="text-3xl font-semibold text-gray-900 leading-tight mb-2">Add some photos</h1>
               <p className="text-gray-500">Paste up to 5 image URLs. The first photo is your cover shot.</p>
@@ -372,8 +430,9 @@ export default function CreateHotel() {
             <p className="text-xs text-gray-400 mt-5 leading-relaxed">
               Tip: use Unsplash URLs like <span className="font-mono bg-gray-100 px-1 rounded">https://images.unsplash.com/photo-...</span>
             </p>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
 
       {/* ── FIXED BOTTOM CTA ── */}

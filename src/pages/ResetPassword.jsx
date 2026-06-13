@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { extractError } from '../config/apiError';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -52,14 +53,26 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <p className="text-red-500 font-bold">Invalid password reset link. Please request a new one.</p>
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="text-red-500 font-bold"
+        >
+          Invalid password reset link. Please request a new one.
+        </motion.p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
-      <div className="w-full max-w-[440px]">
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="w-full max-w-[440px]"
+      >
         <div className="border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
             <div className="w-7" />
@@ -73,11 +86,19 @@ export default function ResetPassword() {
               <p className="text-sm text-gray-500 mt-1">Make sure it's at least 6 characters long.</p>
             </div>
 
-            {status.message && (
-              <div className={`flex items-start gap-2 p-3.5 border rounded-xl text-sm ${status.type === 'error' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-green-50 border-green-100 text-green-700'}`}>
-                {status.message}
-              </div>
-            )}
+            <AnimatePresence>
+              {status.message && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -8, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex items-start gap-2 p-3.5 border rounded-xl text-sm overflow-hidden ${status.type === 'error' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-green-50 border-green-100 text-green-700'}`}
+                >
+                  {status.message}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:border-gray-900 focus-within:ring-1 focus-within:ring-gray-900 transition-all">
@@ -100,16 +121,26 @@ export default function ResetPassword() {
                 </div>
               </div>
 
-              <button type="submit" disabled={isLoading} className="w-full mt-2 bg-gradient-to-r from-[#E61E4D] to-[#FF385C] hover:from-[#D31A45] hover:to-[#E61E4D] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[15px]">
+              <motion.button
+                type="submit"
+                disabled={isLoading}
+                whileTap={{ scale: 0.98 }}
+                className="w-full mt-2 bg-gradient-to-r from-[#E61E4D] to-[#FF385C] hover:from-[#D31A45] hover:to-[#E61E4D] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[15px]"
+              >
                 {isLoading ? 'Updating...' : 'Update password'}
-              </button>
+              </motion.button>
             </form>
           </div>
         </div>
-        <div className="flex justify-center mt-6">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.3 }}
+          className="flex justify-center mt-6"
+        >
           <AirbnbLogo />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiUrl } from '../config/api';
 import { extractError } from '../config/apiError';
 import { useNavigate, Link } from 'react-router-dom';
@@ -75,7 +76,12 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
-      <div className="w-full max-w-[440px]">
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="w-full max-w-[440px]"
+      >
         <div className="border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
           <div className="relative flex items-center justify-between px-6 py-5 border-b border-gray-200">
@@ -95,14 +101,22 @@ export default function Signup() {
               <p className="text-sm text-gray-500 mt-1">Create your account to start booking</p>
             </div>
 
-            {error && (
-              <div className="flex items-start gap-2 p-3.5 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-                {error}
-              </div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -8, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-start gap-2 p-3.5 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm overflow-hidden"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:border-gray-900 focus-within:ring-1 focus-within:ring-gray-900 transition-all">
@@ -157,14 +171,19 @@ export default function Signup() {
                 Use at least 6 characters — a mix of letters and numbers works best.
               </p>
 
-              <button type="submit" disabled={isLoading} className="w-full mt-1 bg-gradient-to-r from-[#E61E4D] to-[#FF385C] hover:from-[#D31A45] hover:to-[#E61E4D] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[15px]">
+              <motion.button
+                type="submit"
+                disabled={isLoading}
+                whileTap={{ scale: 0.98 }}
+                className="w-full mt-1 bg-gradient-to-r from-[#E61E4D] to-[#FF385C] hover:from-[#D31A45] hover:to-[#E61E4D] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[15px]"
+              >
                 {isLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Creating account…</span>
                   </>
                 ) : 'Agree and continue'}
-              </button>
+              </motion.button>
             </form>
 
             <div className="flex items-center gap-3">
@@ -204,10 +223,15 @@ export default function Signup() {
           </div>
         </div>
 
-        <div className="flex justify-center mt-6">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.3 }}
+          className="flex justify-center mt-6"
+        >
           <AirbnbLogo />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }

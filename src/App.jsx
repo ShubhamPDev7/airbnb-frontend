@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Home from './pages/Home';
@@ -14,6 +15,23 @@ import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import CompleteProfile from './pages/CompleteProfile';
+
+
+function ProtectedRoute({ children, adminOnly = false }) {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const location = useLocation();
+
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (adminOnly && user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
 
 
 function Navbar() {
@@ -39,7 +57,6 @@ function Navbar() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [roomsCount, setRoomsCount] = useState(1);
-  const [activeTab, setActiveTab] = useState('stays');
   const [activeMenu, setActiveMenu] = useState(null);
   const [viewingMonth, setViewingMonth] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1)
@@ -225,37 +242,44 @@ function Navbar() {
             </Link>
 
             {/* Desktop: tab switcher (expanded) OR collapsed pill */}
-            {isExpanded ? (
-              <div className="hidden md:flex items-center justify-center gap-6 text-[15px] text-gray-500">
-                {['stays', 'experiences'].map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setActiveTab(t)}
-                    className={`pb-2 border-b-2 hover:text-black transition-all capitalize ${activeTab === t ? 'border-black text-black font-medium' : 'border-transparent'}`}
-                  >
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div
-                onClick={() => setIsExpanded(true)}
-                className="hidden md:flex items-center border border-gray-300 rounded-full py-2 px-4 shadow-sm hover:shadow-md cursor-pointer transition-all"
-              >
-                <div className="px-4 border-r border-gray-300 font-semibold text-gray-900 text-sm truncate max-w-[120px]">
-                  {searchCity || 'Anywhere'}
-                </div>
-                <div className="px-4 border-r border-gray-300 font-semibold text-gray-900 text-sm">
-                  {startDate && endDate ? `${startDate.slice(5)} – ${endDate.slice(5)}` : 'Any week'}
-                </div>
-                <div className="px-4 text-gray-500 text-sm">
-                  {roomsCount > 1 ? `${roomsCount} rooms` : 'Add guests'}
-                </div>
-                <div className="bg-[#FF385C] text-white p-2 rounded-full ml-2">
-                  <SearchIcon />
-                </div>
-              </div>
-            )}
+            <AnimatePresence mode="wait">
+              {isExpanded ? (
+                <motion.div
+                  key="tabs"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="hidden md:flex items-center justify-center"
+                >
+                  <span className="text-[15px] font-semibold text-gray-900">Stays</span>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="pill"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => setIsExpanded(true)}
+                  className="hidden md:flex items-center border border-gray-300 rounded-full py-2 px-4 shadow-sm hover:shadow-md cursor-pointer transition-all"
+                >
+                  <div className="px-4 border-r border-gray-300 font-semibold text-gray-900 text-sm truncate max-w-[120px]">
+                    {searchCity || 'Anywhere'}
+                  </div>
+                  <div className="px-4 border-r border-gray-300 font-semibold text-gray-900 text-sm">
+                    {startDate && endDate ? `${startDate.slice(5)} – ${endDate.slice(5)}` : 'Any week'}
+                  </div>
+                  <div className="px-4 text-gray-500 text-sm">
+                    {roomsCount > 1 ? `${roomsCount} rooms` : 'Add guests'}
+                  </div>
+                  <div className="bg-[#FF385C] text-white p-2 rounded-full ml-2">
+                    <SearchIcon />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Mobile search pill */}
             <div
@@ -280,12 +304,6 @@ function Navbar() {
                 Become a host
               </button>
 
-              <button className="p-2 rounded-full hover:bg-gray-100 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-gray-700">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
-                </svg>
-              </button>
-
               {/* Desktop profile */}
               <div className="relative" ref={desktopProfileRef}>
                 <button
@@ -304,30 +322,39 @@ function Navbar() {
                   </div>
                 </button>
 
-                {isProfileMenuOpen && (
-                  <div className="absolute top-14 right-0 bg-white border border-gray-200 shadow-xl rounded-2xl w-64 py-2 text-sm text-gray-700 flex flex-col z-[120] overflow-hidden">
-                    {isLoggedIn ? (
-                      <>
-                        <div className="px-4 py-3 border-b border-gray-200">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{storedUser?.name || 'My Account'}</p>
-                          <p className="text-xs text-gray-500 truncate">{storedUser?.email || ''}</p>
-                        </div>
-                        <MenuItem onClick={() => menuNav('/my-trips')} bold>My Trips</MenuItem>
-                        <MenuItem onClick={() => menuNav('/host/create')}>Host a property</MenuItem>
-                        <MenuItem onClick={() => menuNav('/admin/dashboard')}>Manage Listings</MenuItem>
-                        <hr className="my-1 border-gray-200" />
-                        <MenuItem onClick={handleLogout}>Log out</MenuItem>
-                      </>
-                    ) : (
-                      <>
-                        <MenuItem onClick={() => menuNav('/login')} bold>Log in</MenuItem>
-                        <MenuItem onClick={() => menuNav('/signup')}>Sign up</MenuItem>
-                        <hr className="my-1 border-gray-200" />
-                        <MenuItem onClick={() => menuNav('/host/create')}>Become a host</MenuItem>
-                      </>
-                    )}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {isProfileMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'top right' }}
+                      className="absolute top-14 right-0 bg-white border border-gray-200 shadow-xl rounded-2xl w-64 py-2 text-sm text-gray-700 flex flex-col z-[120] overflow-hidden"
+                    >
+                      {isLoggedIn ? (
+                        <>
+                          <div className="px-4 py-3 border-b border-gray-200">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{storedUser?.name || 'My Account'}</p>
+                            <p className="text-xs text-gray-500 truncate">{storedUser?.email || ''}</p>
+                          </div>
+                          <MenuItem onClick={() => menuNav('/my-trips')} bold>My Trips</MenuItem>
+                          <MenuItem onClick={() => menuNav('/host/create')}>Host a property</MenuItem>
+                          <MenuItem onClick={() => menuNav('/admin/dashboard')}>Manage Listings</MenuItem>
+                          <hr className="my-1 border-gray-200" />
+                          <MenuItem onClick={handleLogout}>Log out</MenuItem>
+                        </>
+                      ) : (
+                        <>
+                          <MenuItem onClick={() => menuNav('/login')} bold>Log in</MenuItem>
+                          <MenuItem onClick={() => menuNav('/signup')}>Sign up</MenuItem>
+                          <hr className="my-1 border-gray-200" />
+                          <MenuItem onClick={() => menuNav('/host/create')}>Become a host</MenuItem>
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 
@@ -346,37 +373,61 @@ function Navbar() {
                 </div>
               </button>
 
-              {isProfileMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-[115]" onClick={() => setIsProfileMenuOpen(false)} />
-                  <div className="absolute top-12 right-0 bg-white border border-gray-200 shadow-xl rounded-2xl w-56 py-2 text-sm text-gray-700 flex flex-col z-[120] overflow-hidden">
-                    {isLoggedIn ? (
-                      <>
-                        <div className="px-4 py-3 border-b border-gray-200">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{storedUser?.name || 'My Account'}</p>
-                          <p className="text-xs text-gray-500 truncate">{storedUser?.email || ''}</p>
-                        </div>
-                        <MenuItem onClick={() => menuNav('/my-trips')} bold>My Trips</MenuItem>
-                        <MenuItem onClick={() => menuNav('/host/create')}>Host a property</MenuItem>
-                        <MenuItem onClick={() => menuNav('/admin/dashboard')}>Manage Listings</MenuItem>
-                        <hr className="my-1 border-gray-200" />
-                        <MenuItem onClick={handleLogout}>Log out</MenuItem>
-                      </>
-                    ) : (
-                      <>
-                        <MenuItem onClick={() => menuNav('/login')} bold>Log in</MenuItem>
-                        <MenuItem onClick={() => menuNav('/signup')}>Sign up</MenuItem>
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
+              <AnimatePresence>
+                {isProfileMenuOpen && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="fixed inset-0 z-[115]"
+                      onClick={() => setIsProfileMenuOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'top right' }}
+                      className="absolute top-12 right-0 bg-white border border-gray-200 shadow-xl rounded-2xl w-56 py-2 text-sm text-gray-700 flex flex-col z-[120] overflow-hidden"
+                    >
+                      {isLoggedIn ? (
+                        <>
+                          <div className="px-4 py-3 border-b border-gray-200">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{storedUser?.name || 'My Account'}</p>
+                            <p className="text-xs text-gray-500 truncate">{storedUser?.email || ''}</p>
+                          </div>
+                          <MenuItem onClick={() => menuNav('/my-trips')} bold>My Trips</MenuItem>
+                          <MenuItem onClick={() => menuNav('/host/create')}>Host a property</MenuItem>
+                          <MenuItem onClick={() => menuNav('/admin/dashboard')}>Manage Listings</MenuItem>
+                          <hr className="my-1 border-gray-200" />
+                          <MenuItem onClick={handleLogout}>Log out</MenuItem>
+                        </>
+                      ) : (
+                        <>
+                          <MenuItem onClick={() => menuNav('/login')} bold>Log in</MenuItem>
+                          <MenuItem onClick={() => menuNav('/signup')}>Sign up</MenuItem>
+                        </>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
           {/* ── DESKTOP EXPANDED SEARCH BAR ── */}
-          {isExpanded && (
-            <div className="hidden md:flex justify-center relative z-[90] mt-4 w-full" ref={searchBarRef}>
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div
+                initial={{ opacity: 0, y: -12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="hidden md:flex justify-center relative z-[90] mt-4 w-full"
+                ref={searchBarRef}
+              >
               <form
                 onSubmit={handleSearch}
                 className="flex items-center bg-white border border-gray-300 rounded-full shadow-md w-full max-w-[860px] h-[66px] relative"
@@ -448,109 +499,142 @@ function Navbar() {
                 </div>
 
                 {/* ── CALENDAR POPOVER ── */}
-                {(activeMenu === 'checkin' || activeMenu === 'checkout') && (
-                  <div
-                    className="absolute top-[78px] left-1/2 -translate-x-1/2 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[700px] md:w-[860px] border border-gray-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* prev/next month buttons */}
-                    <button
-                      type="button"
-                      onClick={() => changeMonth(-1)}
-                      className="absolute left-4 top-8 p-2 rounded-full hover:bg-gray-100 transition z-10"
+                <AnimatePresence>
+                  {(activeMenu === 'checkin' || activeMenu === 'checkout') && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96, y: -8, x: '-50%' }}
+                      animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
+                      exit={{ opacity: 0, scale: 0.96, y: -8, x: '-50%' }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'top center' }}
+                      className="absolute top-[78px] left-1/2 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[700px] md:w-[860px] border border-gray-200"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <ChevronLeft />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => changeMonth(1)}
-                      className="absolute right-4 top-8 p-2 rounded-full hover:bg-gray-100 transition z-10"
-                    >
-                      <ChevronRight />
-                    </button>
+                      {/* prev/next month buttons */}
+                      <button
+                        type="button"
+                        onClick={() => changeMonth(-1)}
+                        className="absolute left-4 top-8 p-2 rounded-full hover:bg-gray-100 transition z-10"
+                      >
+                        <ChevronLeft />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeMonth(1)}
+                        className="absolute right-4 top-8 p-2 rounded-full hover:bg-gray-100 transition z-10"
+                      >
+                        <ChevronRight />
+                      </button>
 
-                    {/* Two months side by side */}
-                    <div className="flex gap-4">
-                      {renderCalendar(0)}
-                      <div className="w-px bg-gray-100 shrink-0" />
-                      {renderCalendar(1)}
-                    </div>
-
-                    {/* Clear dates link */}
-                    {(startDate || endDate) && (
-                      <div className="flex justify-center mt-4">
-                        <button
-                          type="button"
-                          onClick={() => { setStartDate(''); setEndDate(''); }}
-                          className="text-sm font-semibold underline text-gray-700 hover:text-gray-900"
-                        >
-                          Clear dates
-                        </button>
+                      {/* Two months side by side */}
+                      <div className="flex gap-4">
+                        {renderCalendar(0)}
+                        <div className="w-px bg-gray-100 shrink-0" />
+                        {renderCalendar(1)}
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {/* Clear dates link */}
+                      {(startDate || endDate) && (
+                        <div className="flex justify-center mt-4">
+                          <button
+                            type="button"
+                            onClick={() => { setStartDate(''); setEndDate(''); }}
+                            className="text-sm font-semibold underline text-gray-700 hover:text-gray-900"
+                          >
+                            Clear dates
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Who popover */}
-                {activeMenu === 'who' && (
-                  <div
-                    className="absolute top-[78px] right-0 bg-white rounded-3xl shadow-2xl p-6 w-[340px] border border-gray-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex justify-between items-center py-4">
-                      <div>
-                        <div className="font-semibold text-gray-900">Rooms</div>
-                        <div className="text-sm text-gray-500">Accommodation needed</div>
+                <AnimatePresence>
+                  {activeMenu === 'who' && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96, y: -8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -8 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'top right' }}
+                      className="absolute top-[78px] right-0 bg-white rounded-3xl shadow-2xl p-6 w-[340px] border border-gray-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex justify-between items-center py-4">
+                        <div>
+                          <div className="font-semibold text-gray-900">Rooms</div>
+                          <div className="text-sm text-gray-500">Accommodation needed</div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() => setRoomsCount(Math.max(1, roomsCount - 1))}
+                            className="w-8 h-8 rounded-full border border-gray-400 flex items-center justify-center hover:border-gray-900 transition text-lg"
+                          >−</button>
+                          <span className="font-semibold w-4 text-center">{roomsCount}</span>
+                          <button
+                            type="button"
+                            onClick={() => setRoomsCount(roomsCount + 1)}
+                            className="w-8 h-8 rounded-full border border-gray-400 flex items-center justify-center hover:border-gray-900 transition text-lg"
+                          >+</button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setRoomsCount(Math.max(1, roomsCount - 1))}
-                          className="w-8 h-8 rounded-full border border-gray-400 flex items-center justify-center hover:border-gray-900 transition text-lg"
-                        >−</button>
-                        <span className="font-semibold w-4 text-center">{roomsCount}</span>
-                        <button
-                          type="button"
-                          onClick={() => setRoomsCount(roomsCount + 1)}
-                          className="w-8 h-8 rounded-full border border-gray-400 flex items-center justify-center hover:border-gray-900 transition text-lg"
-                        >+</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Where suggestions */}
-                {activeMenu === 'where' && (
-                  <div
-                    className="absolute top-[78px] left-0 bg-white rounded-3xl shadow-2xl p-4 w-[420px] border border-gray-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider px-2 mb-3">Popular destinations</p>
-                    {['Mumbai', 'Delhi', 'Bangalore', 'Goa', 'Pune', 'Jaipur'].map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => { setSearchCity(c); setActiveMenu('checkin'); }}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-gray-100 rounded-xl transition text-left"
-                      >
-                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-lg shrink-0">📍</div>
-                        <div>
-                          <div className="font-medium text-gray-900">{c}</div>
-                          <div className="text-sm text-gray-500">India</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {activeMenu === 'where' && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96, y: -8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -8 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      style={{ transformOrigin: 'top left' }}
+                      className="absolute top-[78px] left-0 bg-white rounded-3xl shadow-2xl p-4 w-[420px] border border-gray-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider px-2 mb-3">Popular destinations</p>
+                      {['Mumbai', 'Delhi', 'Bangalore', 'Goa', 'Pune', 'Jaipur'].map((c, idx) => (
+                        <motion.button
+                          key={c}
+                          type="button"
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.15, delay: idx * 0.03 }}
+                          whileHover={{ x: 2 }}
+                          onClick={() => { setSearchCity(c); setActiveMenu('checkin'); }}
+                          className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-gray-100 rounded-xl transition text-left"
+                        >
+                          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-lg shrink-0">📍</div>
+                          <div>
+                            <div className="font-medium text-gray-900">{c}</div>
+                            <div className="text-sm text-gray-500">India</div>
+                          </div>
+                        </motion.button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </form>
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </header>
 
       {/* ── MOBILE FULL-SCREEN SEARCH OVERLAY ── */}
-      {isMobileSearchOpen && (
-        <div className="md:hidden fixed inset-0 bg-gray-50 z-[200] overflow-y-auto">
+      <AnimatePresence>
+        {isMobileSearchOpen && (
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+            className="md:hidden fixed inset-0 bg-gray-50 z-[200] overflow-y-auto"
+          >
           <div className="bg-white p-4 pb-6 shadow-sm sticky top-0 z-10">
             <div className="flex items-center gap-3 mb-5">
               <button onClick={() => setIsMobileSearchOpen(false)} className="p-2 bg-gray-100 rounded-full shrink-0">
@@ -560,17 +644,7 @@ function Navbar() {
               </button>
               <span className="font-bold text-lg text-gray-900">Search</span>
             </div>
-            <div className="flex gap-3 mb-5">
-              {['stays', 'experiences'].map(t => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  className={`flex-1 py-2 rounded-full text-sm font-semibold border transition ${activeTab === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}`}
-                >
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              ))}
-            </div>
+
           </div>
 
           <div className="p-4 flex flex-col gap-4 pb-28">
@@ -651,8 +725,9 @@ function Navbar() {
               <SearchIcon className="w-4 h-4" /> Search
             </button>
           </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -700,18 +775,18 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/hotel/:id" element={<HotelDetails />} />
-        <Route path="/checkout/:bookingId" element={<Checkout />} />
+        <Route path="/checkout/:bookingId" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="/payments/success" element={<PaymentSuccess />} />
         <Route path="/payments/failure" element={<PaymentFailure />} />
-        <Route path="/my-trips" element={<MyTrips />} />
+        <Route path="/my-trips" element={<ProtectedRoute><MyTrips /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/complete-profile" element={<CompleteProfile />} />
-        <Route path="/host/create" element={<CreateHotel />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
+        <Route path="/host/create" element={<ProtectedRoute><CreateHotel /></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );
